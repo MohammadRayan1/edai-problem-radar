@@ -8,10 +8,13 @@
   <span class="badge {{ record.status }}">{{ record.status.replace('_', ' ') }}</span>
 </p>
 
-<div class="video-wrap">
+<div class="video-wrap" style="flex-direction: column; align-items: center; gap: 0.75rem;">
   <video controls preload="metadata">
     <source src="/video/{{ record.id }}" type="video/mp4">
   </video>
+  <a href="/video/{{ record.id }}/download" download>
+    <button type="button">⬇ Download full-resolution video</button>
+  </a>
 </div>
 
 <div class="panel">

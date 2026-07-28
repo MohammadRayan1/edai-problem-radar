@@ -126,6 +126,14 @@ def build_app() -> FastAPI:
             record = session.get(ReviewRecord, item_id)
         return FileResponse(record.video_path, media_type="video/mp4")
 
+    @web_app.get("/video/{item_id}/download")
+    async def video_download(item_id: int, _: None = Depends(require_login)) -> FileResponse:
+        engine = get_engine(DB_PATH)
+        with Session(engine) as session:
+            record = session.get(ReviewRecord, item_id)
+        slug = record.problem_title.lower().replace(" ", "_").replace("/", "_")
+        return FileResponse(record.video_path, media_type="video/mp4", filename=f"{slug}.mp4")
+
     @web_app.post("/draft/{item_id}/approve")
     async def approve(item_id: int, _: None = Depends(require_login)) -> RedirectResponse:
         _decide(item_id, "approved", None, DB_PATH)
