@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}EdAI Problem Radar{% endblock %}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0f1115;
+    --panel: #171a21;
+    --border: #2a2e38;
+    --text: #e8eaed;
+    --muted: #9aa0ac;
+    --accent: #4f8cff;
+    --good: #3ecf6e;
+    --bad: #ff5c5c;
+    --warn: #f5b73c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0 0 4rem;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+  }
+  header a { color: var(--text); text-decoration: none; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 0.85rem; }
+  main { max-width: 1000px; margin: 0 auto; padding: 0 1.5rem; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  tr:last-child td { border-bottom: none; }
+  a.row-link { color: var(--text); text-decoration: none; }
+  a.row-link:hover { color: var(--accent); }
+  .badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+  .badge.pending { background: rgba(245,183,60,0.15); color: var(--warn); }
+  .badge.approved { background: rgba(62,207,110,0.15); color: var(--good); }
+  .badge.rejected { background: rgba(255,92,92,0.15); color: var(--bad); }
+  .badge.changes_requested { background: rgba(79,140,255,0.15); color: var(--accent); }
+  .flag { color: var(--warn); font-weight: 600; }
+  button, input[type=submit] {
+    font-family: inherit;
+    font-size: 0.95rem;
+    padding: 0.55rem 1.1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #21252e;
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover, input[type=submit]:hover { border-color: var(--accent); }
+  button.primary, input[type=submit].primary { background: var(--good); border-color: var(--good); color: #08210f; font-weight: 700; }
+  button.danger, input[type=submit].danger { background: var(--bad); border-color: var(--bad); color: #2a0a0a; font-weight: 700; }
+  input[type=password], textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 0.95rem;
+    padding: 0.6rem 0.7rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0d0f14;
+    color: var(--text);
+  }
+  textarea { min-height: 4.5rem; resize: vertical; }
+  .muted { color: var(--muted); }
+  .error { color: var(--bad); margin-bottom: 1rem; }
+  video { width: 100%; max-width: 380px; border-radius: 10px; border: 1px solid var(--border); display: block; }
+  .video-wrap { display: flex; justify-content: center; margin-bottom: 1.25rem; }
+  .section-name { color: var(--accent); font-weight: 700; margin: 1rem 0 0.35rem; }
+  .cite-mark { color: var(--accent); font-weight: 700; font-size: 0.8rem; vertical-align: super; }
+  .ledger-entry { margin-bottom: 0.9rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--border); }
+  .ledger-entry:last-child { border-bottom: none; }
+  .ledger-entry.stretched { border-left: 3px solid var(--warn); padding-left: 0.75rem; }
+  .ledger-quote { font-style: italic; }
+  .ledger-url { color: var(--muted); font-size: 0.85rem; word-break: break-all; }
+  .ledger-used { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+  .actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; flex-wrap: wrap; }
+  .actions form { display: flex; gap: 0.5rem; align-items: flex-start; flex: 1; min-width: 220px; }
+  .actions form.approve-form { flex: 0 0 auto; }
+  .back-link { display: inline-block; margin-bottom: 1rem; color: var(--muted); text-decoration: none; }
+  .back-link:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">EdAI Problem Radar — Review</a>
+  <span class="sub">{% if authenticated %}<a href="/logout" style="color:var(--muted);font-weight:400;">sign out</a>{% endif %}</span>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

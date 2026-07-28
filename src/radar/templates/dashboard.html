@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Review Queue — EdAI Problem Radar{% endblock %}
+{% block content %}
+<h2>Review Queue</h2>
+<p class="muted">{{ pending_count }} waiting for review · {{ records|length }} total</p>
+
+{% if records %}
+<div class="panel">
+<table>
+  <tr>
+    <th>Title</th>
+    <th>Domain</th>
+    <th>Duration</th>
+    <th>Status</th>
+    <th>Evidence</th>
+  </tr>
+  {% for r in records %}
+  <tr>
+    <td><a class="row-link" href="/draft/{{ r.id }}">{{ r.problem_title }}</a></td>
+    <td>{{ r.domain }}</td>
+    <td>{{ "%.1f"|format(r.total_duration_seconds) }}s</td>
+    <td><span class="badge {{ r.status }}">{{ r.status.replace('_', ' ') }}</span></td>
+    <td>{% if r.id in flagged_ids %}<span class="flag">⚠ check citations</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+{% else %}
+<p class="muted">No drafts yet.</p>
+{% endif %}
+{% endblock %}

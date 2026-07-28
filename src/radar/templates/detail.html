@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ record.problem_title }} — EdAI Problem Radar{% endblock %}
+{% block content %}
+<a class="back-link" href="/">&larr; back to queue</a>
+<h2 style="margin-bottom:0.2rem;">{{ record.problem_title }}</h2>
+<p class="muted" style="margin-top:0;">
+  {{ record.domain }} · {{ "%.1f"|format(record.total_duration_seconds) }}s ·
+  <span class="badge {{ record.status }}">{{ record.status.replace('_', ' ') }}</span>
+</p>
+
+<div class="video-wrap">
+  <video controls preload="metadata">
+    <source src="/video/{{ record.id }}" type="video/mp4">
+  </video>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0;">Script</h3>
+  {% for section in sections %}
+    <div class="section-name">{{ section.name }} ({{ section.start_sec }}-{{ section.end_sec }}s)</div>
+    {% for line in section.lines %}
+      <div>{{ line.text }}{% for idx in line.citation_indices %}<span class="cite-mark">[{{ idx }}]</span>{% endfor %}</div>
+    {% endfor %}
+  {% endfor %}
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0;">Evidence Ledger</h3>
+  {% for entry in ledger %}
+    <div class="ledger-entry {% if loop.index0 in stretched %}stretched{% endif %}">
+      {% if loop.index0 in stretched %}<div class="flag">⚠ used to back {{ entry.used_in|length }} different lines — check each is really verified by it</div>{% endif %}
+      <div class="ledger-quote">[{{ loop.index0 }}] "{{ entry.citation.quote }}"</div>
+      <div class="ledger-url">{{ entry.citation.url }}</div>
+      <div class="ledger-used">Used in: {{ entry.used_in|join(" · ") }}</div>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="actions">
+  <form class="approve-form" method="post" action="/draft/{{ record.id }}/approve">
+    <button type="submit" class="primary">Post it</button>
+  </form>
+  <form method="post" action="/draft/{{ record.id }}/reject">
+    <textarea name="note" placeholder="Why are you flagging this? (optional)"></textarea>
+    <button type="submit" class="danger">Flag it</button>
+  </form>
+</div>
+{% endblock %}
