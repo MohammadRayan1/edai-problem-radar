@@ -67,8 +67,6 @@ CAPTION_LINE_HEIGHT = 80
 CAPTION_ZONE_TOP = 1100
 CAPTION_ZONE_BOTTOM = 1780
 
-SECTION_LABEL_COLOR = "#7dd3fc"
-
 ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps"
 
 
@@ -271,10 +269,8 @@ def _build_caption_clips(item: dict, font: str, highlight_color: tuple[int, int,
 
 
 def _assemble_video(
-    timeline: list[dict], clips: list[AudioFileClip], visuals: list[dict | None], font: str, watermark_text: str
+    timeline: list[dict], clips: list[AudioFileClip], visuals: list[dict | None], font: str
 ) -> CompositeVideoClip:
-    total_duration = timeline[-1]["end"]
-
     backgrounds = [
         _build_background_clip(visual, item["start"], item["end"] - item["start"])
         for item, visual in zip(timeline, visuals)
@@ -282,28 +278,12 @@ def _assemble_video(
 
     overlays = []
     for i, item in enumerate(timeline):
-        duration = item["end"] - item["start"]
         highlight_color = ACCENT_PALETTE[i % len(ACCENT_PALETTE)]
-
-        label = (
-            TextClip(font=font, text=item["section"].upper(), font_size=36, color=SECTION_LABEL_COLOR)
-            .with_position(("center", 140))
-            .with_start(item["start"])
-            .with_duration(duration)
-        )
-        overlays.append(label)
         overlays.extend(_build_caption_clips(item, font, highlight_color))
-
-    watermark = (
-        TextClip(font=font, text=watermark_text, font_size=28, color="white")
-        .with_opacity(0.5)
-        .with_position(("center", 1850))
-        .with_duration(total_duration)
-    )
 
     audio = concatenate_audioclips(clips)
 
-    video = CompositeVideoClip([*backgrounds, *overlays, watermark], size=VIDEO_SIZE)
+    video = CompositeVideoClip([*backgrounds, *overlays], size=VIDEO_SIZE)
     return video.with_audio(audio)
 
 
@@ -367,8 +347,7 @@ def generate_video(
     _attach_visual_metadata(timeline, queries, visuals)
 
     console.print("[bold]Assembling video...[/bold]")
-    watermark_text = f"EDAI DRAFT · {timestamp}"
-    video = _assemble_video(timeline, clips, visuals, font, watermark_text)
+    video = _assemble_video(timeline, clips, visuals, font)
 
     video_path = draft_dir / "draft.mp4"
     video.write_videofile(str(video_path), fps=FPS, codec="libx264", audio_codec="aac", logger=None)
