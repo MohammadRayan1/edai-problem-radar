@@ -62,16 +62,27 @@ radar video data/scripts/<problem>_<timestamp>.json
 # Do all three in one shot, for a domain's top N problems
 radar batch "Healthcare" --count 3
 
-# Review the queue
+# Review the queue (CLI)
 radar review list
 radar review show <id>
 radar review approve <id>
 radar review reject <id> --note "why"
 radar review request-changes <id> --note "what should change"
 
+# Review the queue (browser page — for non-technical reviewers, e.g. a manager)
+radar review-web
+
 # See what you've spent so far
 radar usage show
 ```
+
+### Browser review page (`radar review-web`)
+
+A local, password-gated web page for reviewing drafts without touching the CLI — watch each video, read the script with citation markers, see the evidence ledger (with citation-stretch warnings highlighted), then "Post it" (approve) or "Flag it" (reject, with an optional note).
+
+- Password comes from `REVIEW_PASSWORD` in `.env` — set a real one before sharing this with anyone.
+- By default it only listens on `127.0.0.1` (this machine only). To let someone review from their own device on the same WiFi/network, run `radar review-web --host 0.0.0.0` and give them `http://<this-machine's-LAN-IP>:8000` (find your LAN IP with `ipconfig getifaddr en0` on macOS). Anyone on that network who has the password can reach it, so only do this on a trusted network.
+- `--port` overrides the port (default 8000 / `REVIEW_WEB_PORT` in `.env`).
 
 The 10 valid domains (must match exactly): Aerospace and Space Systems, Defense, Agriculture, Energy, Public Safety and Emergency Response, Supply Chain and Critical Logistics, Industrials/Manufacturing and Small and Medium-Sized Enterprises, Education, Healthcare, Housing.
 
