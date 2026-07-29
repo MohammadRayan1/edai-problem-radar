@@ -6,14 +6,14 @@
 <title>{% block title %}EdAI Problem Radar{% endblock %}</title>
 <style>
   :root {
-    color-scheme: light dark;
-    --bg: #0f1115;
-    --panel: #171a21;
-    --border: #2a2e38;
-    --text: #e8eaed;
-    --muted: #9aa0ac;
-    --accent: #4f8cff;
-    --good: #3ecf6e;
+    color-scheme: dark;
+    --bg: #050805;
+    --panel: #0d130d;
+    --border: #1f3324;
+    --text: #e6f5e9;
+    --muted: #7fa88a;
+    --accent: #22c55e;
+    --good: #34d399;
     --bad: #ff5c5c;
     --warn: #f5b73c;
   }
@@ -84,7 +84,7 @@
     padding: 0.85rem 1.75rem;
     border-radius: 10px;
     border: 1px solid var(--border);
-    background: #21252e;
+    background: #142218;
     color: var(--text);
     cursor: pointer;
     transition: filter 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
@@ -100,8 +100,13 @@
     padding: 0.75rem 0.9rem;
     border-radius: 9px;
     border: 1px solid var(--border);
-    background: #0d0f14;
+    background: #060a06;
     color: var(--text);
+  }
+  input[type=password]:focus, input[type=number]:focus, input[type=text]:focus, select:focus, textarea:focus,
+  button:focus-visible, input[type=submit]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
   }
   textarea { min-height: 4.5rem; resize: vertical; }
   .muted { color: var(--muted); }
