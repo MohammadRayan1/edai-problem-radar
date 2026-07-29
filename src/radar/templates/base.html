@@ -7,15 +7,15 @@
 <style>
   :root {
     color-scheme: dark;
-    --bg: #050805;
-    --panel: #0d130d;
-    --border: #1f3324;
-    --text: #e6f5e9;
-    --muted: #7fa88a;
-    --accent: #22c55e;
-    --good: #34d399;
-    --bad: #ff5c5c;
-    --warn: #f5b73c;
+    --bg: #0a0c0a;
+    --panel: #141712;
+    --border: #262b26;
+    --text: #e9ebe8;
+    --muted: #8b968f;
+    --accent: #3ea36e;
+    --good: #4cb782;
+    --bad: #e5534b;
+    --warn: #d9a441;
   }
   * { box-sizing: border-box; }
   body {
@@ -84,15 +84,15 @@
     padding: 0.85rem 1.75rem;
     border-radius: 10px;
     border: 1px solid var(--border);
-    background: #142218;
+    background: #1b1e1a;
     color: var(--text);
     cursor: pointer;
     transition: filter 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
   }
   button:hover, input[type=submit]:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
   button:active, input[type=submit]:active { transform: translateY(0); }
-  button.primary, input[type=submit].primary { background: var(--good); border-color: var(--good); color: #08210f; font-weight: 800; }
-  button.danger, input[type=submit].danger { background: var(--bad); border-color: var(--bad); color: #2a0a0a; font-weight: 800; }
+  button.primary, input[type=submit].primary { background: var(--good); border-color: var(--good); color: #0e1f16; font-weight: 800; }
+  button.danger, input[type=submit].danger { background: var(--bad); border-color: var(--bad); color: #2a100e; font-weight: 800; }
   input[type=password], input[type=number], input[type=text], select, textarea {
     width: 100%;
     font-family: inherit;
@@ -100,7 +100,7 @@
     padding: 0.75rem 0.9rem;
     border-radius: 9px;
     border: 1px solid var(--border);
-    background: #060a06;
+    background: #08090a;
     color: var(--text);
   }
   input[type=password]:focus, input[type=number]:focus, input[type=text]:focus, select:focus, textarea:focus,
