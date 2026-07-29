@@ -3,19 +3,22 @@
 {% block content %}
 <a class="back-link" href="/">&larr; back to queue</a>
 <h2>Generate new videos</h2>
-<p class="muted">Pick a domain and how many problems to turn into videos. You'll see a price estimate before anything runs.</p>
+<p class="muted">Set how many videos to generate for each domain you want (leave at 0 to skip a domain). You'll see a full price breakdown before anything runs.</p>
 
-<div class="panel" style="max-width: 480px;">
+<div class="panel" style="max-width: 560px;">
   <form method="post" action="/generate/estimate">
-    <label class="muted" style="display:block;margin-bottom:0.3rem;">Domain</label>
-    <select name="domain" required style="width:100%;padding:0.6rem 0.7rem;border-radius:8px;border:1px solid var(--border);background:#0d0f14;color:var(--text);font-size:0.95rem;margin-bottom:1rem;">
+    <table style="margin-bottom:1.25rem;">
+      <tr>
+        <th>Domain</th>
+        <th style="width:110px;">Videos (0-{{ max_count }})</th>
+      </tr>
       {% for d in domains %}
-      <option value="{{ d }}">{{ d }}</option>
+      <tr>
+        <td>{{ d }}<input type="hidden" name="domain" value="{{ d }}"></td>
+        <td><input type="number" name="count" value="0" min="0" max="{{ max_count }}" style="width:80px;padding:0.4rem 0.5rem;border-radius:8px;border:1px solid var(--border);background:#0d0f14;color:var(--text);font-size:0.95rem;"></td>
+      </tr>
       {% endfor %}
-    </select>
-
-    <label class="muted" style="display:block;margin-bottom:0.3rem;">How many videos (1-{{ max_count }})</label>
-    <input type="number" name="count" value="2" min="1" max="{{ max_count }}" required style="width:100%;padding:0.6rem 0.7rem;border-radius:8px;border:1px solid var(--border);background:#0d0f14;color:var(--text);font-size:0.95rem;margin-bottom:1.25rem;">
+    </table>
 
     <input type="submit" value="See price &amp; confirm" class="primary" style="width:100%;">
   </form>
