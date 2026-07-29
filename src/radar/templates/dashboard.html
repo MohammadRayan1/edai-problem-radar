@@ -4,33 +4,33 @@
 <h2>Review Queue</h2>
 <p class="muted">{{ pending_count }} waiting for review</p>
 
-<form method="get" action="/" style="display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap;margin-bottom:1.5rem;">
-  <label class="muted" style="font-size:0.85rem;">
-    Domain:
-    <select name="domain" onchange="this.form.submit()" style="margin-left:0.4rem;padding:0.4rem 0.6rem;border-radius:8px;border:1px solid var(--border);background:#0d0f14;color:var(--text);font-size:0.9rem;">
+<form method="get" action="/" style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1.75rem;">
+  <label class="muted" style="font-size:0.9rem;display:flex;align-items:center;gap:0.5rem;">
+    Domain
+    <select name="domain" onchange="this.form.submit()" style="width:auto;min-width:200px;padding:0.55rem 0.75rem;font-size:0.9rem;">
       <option value="">All domains</option>
       {% for d in all_domains %}
       <option value="{{ d }}" {% if d == selected_domain %}selected{% endif %}>{{ d }}</option>
       {% endfor %}
     </select>
   </label>
-  <label class="muted" style="font-size:0.85rem;">
-    <input type="checkbox" name="show_rejected" value="1" {% if show_rejected %}checked{% endif %} onchange="this.form.submit()">
+  <label class="muted" style="font-size:0.9rem;display:flex;align-items:center;gap:0.4rem;">
+    <input type="checkbox" name="show_rejected" value="1" {% if show_rejected %}checked{% endif %} onchange="this.form.submit()" style="width:auto;">
     show rejected
   </label>
 </form>
 
 {% if groups %}
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem;">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
   {% for domain, records in groups %}
   <div class="panel" style="margin-bottom:0;">
-    <h3 style="margin:0 0 0.75rem;font-size:0.95rem;">{{ domain }} <span class="muted" style="font-weight:400;">({{ records|length }})</span></h3>
+    <h3 style="margin:0 0 1rem;font-size:1rem;">{{ domain }} <span class="muted" style="font-weight:400;">({{ records|length }})</span></h3>
     {% for r in records %}
-    <div style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
-      <a class="row-link" href="/draft/{{ r.id }}" style="display:block;font-size:0.88rem;line-height:1.3;">{{ r.problem_title }}</a>
-      <div class="muted" style="font-size:0.75rem;margin-top:0.3rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+    <div style="padding:0.65rem 0;border-bottom:1px solid var(--border);">
+      <a class="row-link" href="/draft/{{ r.id }}" style="display:block;font-size:0.92rem;line-height:1.35;">{{ r.problem_title }}</a>
+      <div class="muted" style="font-size:0.78rem;margin-top:0.4rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
         <span>{{ "%.1f"|format(r.total_duration_seconds) }}s</span>
-        <span class="badge {{ r.status }}" style="font-size:0.65rem;padding:0.1rem 0.4rem;">{{ r.status.replace('_', ' ') }}</span>
+        <span class="badge {{ r.status }}" style="font-size:0.68rem;padding:0.15rem 0.5rem;">{{ r.status.replace('_', ' ') }}</span>
         {% if r.id in flagged_ids %}<span class="flag">⚠</span>{% endif %}
       </div>
     </div>

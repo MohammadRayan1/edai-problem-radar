@@ -5,17 +5,17 @@
 <h2>Generate new videos</h2>
 <p class="muted">Set how many videos to generate for each domain you want (leave at 0 to skip a domain). You'll see a full price breakdown before anything runs.</p>
 
-<div class="panel" style="max-width: 560px;">
+<div class="panel" style="max-width: 620px;">
   <form method="post" action="/generate/estimate">
-    <table style="margin-bottom:1.25rem;">
+    <table style="margin-bottom:1.5rem;">
       <tr>
         <th>Domain</th>
-        <th style="width:110px;">Videos (0-{{ max_count }})</th>
+        <th style="width:130px;">Videos (0-{{ max_count }})</th>
       </tr>
       {% for d in domains %}
       <tr>
         <td>{{ d }}<input type="hidden" name="domain" value="{{ d }}"></td>
-        <td><input type="number" name="count" value="0" min="0" max="{{ max_count }}" style="width:80px;padding:0.4rem 0.5rem;border-radius:8px;border:1px solid var(--border);background:#0d0f14;color:var(--text);font-size:0.95rem;"></td>
+        <td><input type="number" name="count" value="0" min="0" max="{{ max_count }}" style="width:100px;padding:0.5rem 0.6rem;font-size:1rem;"></td>
       </tr>
       {% endfor %}
     </table>
