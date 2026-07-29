@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Confirm — EdAI Problem Radar{% endblock %}
+{% block content %}
+<a class="back-link" href="/generate">&larr; back</a>
+<h2>Confirm generation</h2>
+
+{% if not domain_valid %}
+<div class="error">That domain isn't recognized. Go back and pick one from the list.</div>
+{% else %}
+<div class="panel" style="max-width: 480px;">
+  <p><strong>{{ domain }}</strong> — {{ count }} video{{ "s" if count != 1 else "" }}</p>
+  <table style="margin-bottom:1rem;">
+    <tr><td class="muted">Anthropic (research + script + icons)</td><td>${{ "%.2f"|format(estimate.anthropic_usd) }}</td></tr>
+    <tr><td class="muted">ElevenLabs (narration)</td><td>${{ "%.2f"|format(estimate.elevenlabs_usd) }}</td></tr>
+    <tr><td><strong>Estimated total</strong></td><td><strong>${{ "%.2f"|format(estimate.total_usd) }}</strong></td></tr>
+  </table>
+  <p class="muted" style="font-size:0.85rem;">This is a rough estimate — actual cost depends on how many script attempts it takes to pass validation. Some problems may get skipped if they don't pass the evidence/pacing checks, which doesn't add extra cost.</p>
+
+  <form method="post" action="/generate/confirm" style="margin-top:1rem;">
+    <input type="hidden" name="domain" value="{{ domain }}">
+    <input type="hidden" name="count" value="{{ count }}">
+    <input type="submit" value="Yes, generate {{ count }} video{{ 's' if count != 1 else '' }} (~${{ '%.2f'|format(estimate.total_usd) }})" class="primary" style="width:100%;">
+  </form>
+</div>
+{% endif %}
+{% endblock %}

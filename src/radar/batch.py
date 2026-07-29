@@ -36,8 +36,9 @@ def run(
 
     estimate = estimate_batch_cost(count, settings.anthropic_model)
     console.print(
-        f"[bold]Estimated Anthropic cost for {count} video(s):[/bold] ~${estimate['anthropic_usd']:.2f} "
-        "(rough estimate — actual cost is logged as it runs; TTS cost not included, see `radar usage show`)"
+        f"[bold]Estimated cost for {count} video(s):[/bold] ~${estimate['total_usd']:.2f} "
+        f"(${estimate['anthropic_usd']:.2f} Anthropic + ${estimate['elevenlabs_usd']:.2f} ElevenLabs — "
+        "rough estimate, actual cost is logged as it runs; see `radar usage show`)"
     )
     if not yes and not typer.confirm("Proceed?", default=True):
         raise typer.Exit(0)

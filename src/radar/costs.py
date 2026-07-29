@@ -68,6 +68,10 @@ _EST_ICON_QUERY_OUTPUT_TOK = 300
 _EST_RESEARCH_INPUT_TOK = 3000
 _EST_RESEARCH_OUTPUT_TOK = 1500
 
+# Observed average narration length across many generated scripts (range was
+# roughly 620-940 chars/video) — used to estimate ElevenLabs TTS cost per video.
+_EST_CHARS_PER_VIDEO = 820
+
 
 def estimate_batch_cost(count: int, model: str = "claude-sonnet-5") -> dict:
     prices = ANTHROPIC_PRICE_PER_MTOK.get(model, ANTHROPIC_PRICE_PER_MTOK["claude-sonnet-5"])
@@ -82,10 +86,13 @@ def estimate_batch_cost(count: int, model: str = "claude-sonnet-5") -> dict:
     per_video_icons = anthropic_cost(_EST_ICON_QUERY_INPUT_TOK, _EST_ICON_QUERY_OUTPUT_TOK)
 
     anthropic_total = research + count * (per_video_script + per_video_icons)
+    elevenlabs_total = count * (_EST_CHARS_PER_VIDEO / 1000) * ELEVENLABS_PRICE_PER_1K_CHARS
 
     return {
         "count": count,
         "anthropic_usd": round(anthropic_total, 3),
+        "elevenlabs_usd": round(elevenlabs_total, 3),
+        "total_usd": round(anthropic_total + elevenlabs_total, 3),
     }
 
 

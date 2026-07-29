@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Generate Videos — EdAI Problem Radar{% endblock %}
+{% block content %}
+<a class="back-link" href="/">&larr; back to queue</a>
+<h2>Generate new videos</h2>
+<p class="muted">Pick a domain and how many problems to turn into videos. You'll see a price estimate before anything runs.</p>
+
+<div class="panel" style="max-width: 480px;">
+  <form method="post" action="/generate/estimate">
+    <label class="muted" style="display:block;margin-bottom:0.3rem;">Domain</label>
+    <select name="domain" required style="width:100%;padding:0.6rem 0.7rem;border-radius:8px;border:1px solid var(--border);background:#0d0f14;color:var(--text);font-size:0.95rem;margin-bottom:1rem;">
+      {% for d in domains %}
+      <option value="{{ d }}">{{ d }}</option>
+      {% endfor %}
+    </select>
+
+    <label class="muted" style="display:block;margin-bottom:0.3rem;">How many videos (1-{{ max_count }})</label>
+    <input type="number" name="count" value="2" min="1" max="{{ max_count }}" required style="width:100%;padding:0.6rem 0.7rem;border-radius:8px;border:1px solid var(--border);background:#0d0f14;color:var(--text);font-size:0.95rem;margin-bottom:1.25rem;">
+
+    <input type="submit" value="See price &amp; confirm" class="primary" style="width:100%;">
+  </form>
+</div>
+{% endblock %}

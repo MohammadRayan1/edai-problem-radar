@@ -101,7 +101,12 @@
 <body>
 <header>
   <a href="/">EdAI Problem Radar — Review</a>
-  <span class="sub">{% if authenticated %}<a href="/logout" style="color:var(--muted);font-weight:400;">sign out</a>{% endif %}</span>
+  <span class="sub">
+    {% if authenticated %}
+    <a href="/generate" style="color:var(--muted);font-weight:400;margin-right:1rem;">generate videos</a>
+    <a href="/logout" style="color:var(--muted);font-weight:400;">sign out</a>
+    {% endif %}
+  </span>
 </header>
 <main>
 {% block content %}{% endblock %}

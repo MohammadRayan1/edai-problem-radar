@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{% if done %}Generation finished{% else %}Generating…{% endif %} — EdAI Problem Radar{% endblock %}
+{% block content %}
+{% if not done %}
+<meta http-equiv="refresh" content="6">
+{% endif %}
+<a class="back-link" href="/">&larr; back to queue</a>
+<h2>{% if done %}Generation finished{% else %}Generating…{% endif %}</h2>
+<p class="muted">
+  {% if done %}
+    Done — new drafts (if any) are in the <a href="/" style="color:var(--accent);">review queue</a>.
+  {% else %}
+    This runs in the background and usually takes a few minutes per video. This page refreshes itself every few seconds.
+  {% endif %}
+</p>
+
+<div class="panel">
+  <pre style="white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;font-size:0.85rem;color:var(--text);margin:0;max-height:60vh;overflow-y:auto;">{{ log_text }}</pre>
+</div>
+
+<p class="muted" style="font-size:0.85rem;"><a href="/generate/status/{{ job_id }}/raw" style="color:var(--muted);">view raw log</a></p>
+{% endblock %}

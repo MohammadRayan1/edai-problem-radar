@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 import json
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
 import uvicorn
 from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from radar.config import get_settings
+from radar.costs import estimate_batch_cost
+from radar.research_engine import Domain
 from radar.review_cli import CITATION_STRETCH_THRESHOLD, _decide, _sync_drafts
 from radar.storage import ReviewRecord, get_engine
 
@@ -22,6 +28,10 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 DRAFTS_DIR = Path("data/drafts")
 DB_PATH = Path("data/radar.db")
+GENERATE_LOG_DIR = Path("data/generate_logs")
+MAX_GENERATE_COUNT = 5  # matches `radar batch`'s own cap — keeps a single click bounded in cost
+
+_JOB_ID_RE = re.compile(r"^[a-z0-9_]+_\d{8}T\d{6}Z$")
 
 
 class NotAuthenticated(Exception):
@@ -143,6 +153,79 @@ def build_app() -> FastAPI:
     async def reject(item_id: int, note: str = Form(""), _: None = Depends(require_login)) -> RedirectResponse:
         _decide(item_id, "rejected", note or None, DB_PATH)
         return RedirectResponse("/", status_code=303)
+
+    @web_app.get("/generate")
+    async def generate_form(request: Request, _: None = Depends(require_login)) -> object:
+        return templates.TemplateResponse(
+            request,
+            "generate.html",
+            {"authenticated": True, "domains": [d.value for d in Domain], "max_count": MAX_GENERATE_COUNT},
+        )
+
+    @web_app.post("/generate/estimate")
+    async def generate_estimate(
+        request: Request,
+        domain: str = Form(...),
+        count: int = Form(...),
+        _: None = Depends(require_login),
+    ) -> object:
+        valid_domains = {d.value for d in Domain}
+        count = max(1, min(MAX_GENERATE_COUNT, count))
+        estimate = estimate_batch_cost(count, settings.anthropic_model)
+        return templates.TemplateResponse(
+            request,
+            "generate_confirm.html",
+            {
+                "authenticated": True,
+                "domain": domain,
+                "domain_valid": domain in valid_domains,
+                "count": count,
+                "estimate": estimate,
+            },
+        )
+
+    @web_app.post("/generate/confirm")
+    async def generate_confirm(
+        domain: str = Form(...), count: int = Form(...), _: None = Depends(require_login)
+    ) -> RedirectResponse:
+        count = max(1, min(MAX_GENERATE_COUNT, count))
+        GENERATE_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        slug = re.sub(r"[^a-z0-9]+", "_", domain.lower()).strip("_")
+        job_id = f"{slug}_{timestamp}"
+        log_path = GENERATE_LOG_DIR / f"{job_id}.log"
+
+        with open(log_path, "w") as log_file:
+            subprocess.Popen(
+                [sys.executable, "-m", "radar.cli", "batch", domain, "--count", str(count), "--yes"],
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                cwd=Path.cwd(),
+                start_new_session=True,
+            )
+
+        return RedirectResponse(f"/generate/status/{job_id}", status_code=303)
+
+    @web_app.get("/generate/status/{job_id}")
+    async def generate_status(request: Request, job_id: str, _: None = Depends(require_login)) -> object:
+        if not _JOB_ID_RE.match(job_id):
+            return RedirectResponse("/generate", status_code=303)
+        log_path = GENERATE_LOG_DIR / f"{job_id}.log"
+        log_text = log_path.read_text() if log_path.exists() else "Starting…"
+        done = "Batch Summary" in log_text or "No search results found" in log_text
+        return templates.TemplateResponse(
+            request,
+            "generate_status.html",
+            {"authenticated": True, "job_id": job_id, "log_text": log_text, "done": done},
+        )
+
+    @web_app.get("/generate/status/{job_id}/raw")
+    async def generate_status_raw(job_id: str, _: None = Depends(require_login)) -> PlainTextResponse:
+        if not _JOB_ID_RE.match(job_id):
+            return PlainTextResponse("invalid job id", status_code=404)
+        log_path = GENERATE_LOG_DIR / f"{job_id}.log"
+        return PlainTextResponse(log_path.read_text() if log_path.exists() else "Starting…")
 
     return web_app
 
