@@ -4,7 +4,8 @@
 <a class="back-link" href="/">&larr; back to queue</a>
 <h2 style="margin-bottom:0.2rem;">{{ record.problem_title }}</h2>
 <p class="muted" style="margin-top:0;">
-  {{ record.domain }} · {{ "%.1f"|format(record.total_duration_seconds) }}s ·
+  {{ record.domain }} · {{ "%.1f"|format(record.total_duration_seconds) }}s
+  {% if date %}· generated {{ date }}{% endif %} ·
   <span class="badge {{ record.status }}">{{ record.status.replace('_', ' ') }}</span>
 </p>
 

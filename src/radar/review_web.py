@@ -32,6 +32,21 @@ GENERATE_LOG_DIR = Path("data/generate_logs")
 MAX_GENERATE_COUNT = 5  # matches `radar batch`'s own cap — keeps a single click bounded in cost
 
 _JOB_ID_RE = re.compile(r"^[a-z0-9_]+_\d{8}T\d{6}Z$")
+_DRAFT_TIMESTAMP_RE = re.compile(r"_(\d{8}T\d{6}Z)$")
+
+
+def generated_date(draft_dir: str) -> str:
+    """The date a draft was generated, read from the timestamp embedded in its
+    directory name (not the file's mtime — that changes any time the video file
+    itself is touched, e.g. by `radar watermark`, so it isn't a reliable source)."""
+    match = _DRAFT_TIMESTAMP_RE.search(Path(draft_dir).name)
+    if not match:
+        return ""
+    try:
+        dt_utc = datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return ""
+    return dt_utc.astimezone().strftime("%b %-d")
 
 
 class NotAuthenticated(Exception):
@@ -102,6 +117,7 @@ def build_app() -> FastAPI:
                     flagged_ids.add(r.id)
 
         pending_count = sum(1 for r in records if r.status == "pending")
+        dates = {r.id: generated_date(r.draft_dir) for r in records}
 
         # Normalize case so old records from before the domain list was locked down
         # (e.g. a stray "Aerospace and space systems") group with their canonical column
@@ -134,6 +150,7 @@ def build_app() -> FastAPI:
                 "authenticated": True,
                 "groups": groups,
                 "flagged_ids": flagged_ids,
+                "dates": dates,
                 "pending_count": pending_count,
                 "all_domains": domain_order,
                 "selected_domain": domain,
@@ -161,6 +178,7 @@ def build_app() -> FastAPI:
                 "sections": script_data["sections"],
                 "ledger": script_data["evidence_ledger"],
                 "stretched": stretched,
+                "date": generated_date(record.draft_dir),
             },
         )
 

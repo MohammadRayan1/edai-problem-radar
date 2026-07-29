@@ -30,6 +30,7 @@
       <a class="row-link" href="/draft/{{ r.id }}" style="display:block;font-size:0.92rem;line-height:1.35;">{{ r.problem_title }}</a>
       <div class="muted" style="font-size:0.78rem;margin-top:0.4rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
         <span>{{ "%.1f"|format(r.total_duration_seconds) }}s</span>
+        {% if dates[r.id] %}<span>· {{ dates[r.id] }}</span>{% endif %}
         <span class="badge {{ r.status }}" style="font-size:0.68rem;padding:0.15rem 0.5rem;">{{ r.status.replace('_', ' ') }}</span>
         {% if r.id in flagged_ids %}<span class="flag">⚠</span>{% endif %}
       </div>
