@@ -17,14 +17,14 @@
     {% for s in selections %}
     <tr>
       <td>{{ s.domain }}</td>
-      <td style="text-align:right;">{{ s.count }}</td>
-      <td style="text-align:right;">${{ "%.2f"|format(s.estimate.total_usd) }}</td>
+      <td class="data" style="text-align:right;">{{ s.count }}</td>
+      <td class="data" style="text-align:right;">${{ "%.2f"|format(s.estimate.total_usd) }}</td>
     </tr>
     {% endfor %}
     <tr>
       <td><strong>Total</strong></td>
-      <td style="text-align:right;"><strong>{{ selections|sum(attribute='count') }}</strong></td>
-      <td style="text-align:right;"><strong>${{ "%.2f"|format(grand_total) }}</strong></td>
+      <td class="data" style="text-align:right;color:var(--text);"><strong>{{ selections|sum(attribute='count') }}</strong></td>
+      <td class="data" style="text-align:right;color:var(--accent);"><strong>${{ "%.2f"|format(grand_total) }}</strong></td>
     </tr>
   </table>
   <p class="muted" style="font-size:0.85rem;">Rough estimate — actual cost depends on how many script attempts it takes to pass validation. Domains run one at a time (ElevenLabs rate limits), so this will take a while for several domains at once — you don't need to keep this page open, it keeps running in the background.</p>

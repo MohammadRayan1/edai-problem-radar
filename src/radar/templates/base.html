@@ -6,25 +6,41 @@
 <title>{% block title %}EdAI Problem Radar{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;0,800;1,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  /*
+    Design note: this is a curation desk, not a marketing page — someone opens it
+    to verify AI-drafted claims against real sources before a video ships. The type
+    system splits on that job: serif carries editorial content (titles, script,
+    quoted evidence), mono carries verifiable data (dates, durations, citation
+    index, source URLs) so the two are never visually confused. Verified green is
+    reserved for approve/evidence-holds states; nothing decorative wears it.
+  */
   :root {
     color-scheme: dark;
-    --bg: #000000;
-    --panel: #0e0e0e;
-    --border: #2a2a2a;
-    --text: #f2f2f0;
-    --muted: #9a9a9a;
-    --accent: #1aa873;
-    --good: #2bb37d;
-    --bad: #e5534b;
-    --warn: #d9a441;
-    --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
+    --bg: #050504;
+    --panel: #121210;
+    --panel-raised: #17170f;
+    --border: #29291f;
+    --text: #ece8dd;
+    --muted: #8c8879;
+    --accent: #1fa971;
+    --accent-dim: rgba(31,169,113,0.14);
+    --good: #1fa971;
+    --good-dim: rgba(31,169,113,0.14);
+    --bad: #c1543c;
+    --bad-dim: rgba(193,84,60,0.15);
+    --warn: #c99a3f;
+    --warn-dim: rgba(201,154,63,0.15);
+    --font-display: "Playfair Display", Georgia, "Times New Roman", serif;
     --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   }
   * { box-sizing: border-box; }
   body {
     background: var(--bg);
+    background-image: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(31,169,113,0.06), transparent);
     color: var(--text);
     font-family: var(--font-sans);
     font-size: 1.02rem;
@@ -32,8 +48,16 @@
     margin: 0;
     padding: 0 0 4rem;
   }
-  h2 { font-family: var(--font-serif); font-weight: 800; font-size: 1.9rem; letter-spacing: -0.01em; }
+  h2 { font-family: var(--font-display); font-weight: 800; font-size: 1.85rem; letter-spacing: -0.01em; margin: 0 0 0.3rem; }
   h3 { letter-spacing: -0.005em; }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
   header {
     display: flex;
     align-items: center;
@@ -41,48 +65,51 @@
     gap: 1rem;
     padding: 1.1rem 1.75rem;
     border-bottom: 1px solid var(--border);
-    margin-bottom: 2rem;
-    background: #000;
+    margin-bottom: 2.5rem;
+    background: var(--bg);
   }
-  header a.brand { color: var(--text); text-decoration: none; font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 0.5rem; }
-  header a.brand::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
-  header .sub { display: flex; align-items: center; gap: 0.9rem; }
-  header a.nav-link { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.15s ease; }
+  header a.brand { color: var(--text); text-decoration: none; display: flex; align-items: baseline; gap: 0.55rem; }
+  header a.brand .brand-mark { font-family: var(--font-display); font-weight: 800; font-size: 1.15rem; }
+  header a.brand .brand-mark::before { content: "● "; color: var(--accent); font-size: 0.6rem; vertical-align: middle; }
+  header a.brand .brand-desk { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  header .sub { display: flex; align-items: center; gap: 1.4rem; }
+  header a.nav-link { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.88rem; transition: color 0.15s ease; }
   header a.nav-link:hover { color: var(--text); }
   header a.nav-button {
     display: inline-block;
-    background: var(--text);
-    color: #000;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
     text-decoration: none;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.85rem;
-    letter-spacing: 0.02em;
-    padding: 0.65rem 1.35rem;
+    letter-spacing: 0.01em;
+    padding: 0.6rem 1.3rem;
     border-radius: 999px;
-    transition: filter 0.15s ease, transform 0.1s ease;
+    transition: border-color 0.15s ease, transform 0.1s ease, color 0.15s ease;
   }
-  header a.nav-button:hover { filter: brightness(0.92); transform: translateY(-1px); }
+  header a.nav-button:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
   main { max-width: 1080px; margin: 0 auto; padding: 0 1.75rem; }
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 20px;
+    border-radius: 14px;
     padding: 1.5rem 1.75rem;
     margin-bottom: 1.25rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    transition: box-shadow 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4);
   }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 0.7rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  th { color: var(--muted); font-family: var(--font-mono); font-weight: 500; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
   tr:last-child td { border-bottom: none; }
   a.row-link { color: var(--text); text-decoration: none; font-weight: 500; }
   a.row-link:hover { color: var(--accent); }
-  .badge { display: inline-block; padding: 0.2rem 0.65rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700; }
-  .badge.pending { background: rgba(217,164,65,0.15); color: var(--warn); }
-  .badge.approved { background: rgba(43,179,125,0.15); color: var(--good); }
-  .badge.rejected { background: rgba(229,83,75,0.15); color: var(--bad); }
-  .badge.changes_requested { background: rgba(26,168,115,0.15); color: var(--accent); }
+  .data { font-family: var(--font-mono); font-size: 0.82rem; color: var(--muted); }
+  .badge { display: inline-block; padding: 0.2rem 0.65rem; border-radius: 999px; font-family: var(--font-mono); font-size: 0.7rem; font-weight: 500; letter-spacing: 0.03em; text-transform: uppercase; }
+  .badge.pending { background: var(--warn-dim); color: var(--warn); }
+  .badge.approved { background: var(--good-dim); color: var(--good); }
+  .badge.rejected { background: var(--bad-dim); color: var(--bad); }
+  .badge.changes_requested { background: var(--accent-dim); color: var(--accent); }
   .flag { color: var(--warn); font-weight: 600; }
   button, input[type=submit] {
     font-family: var(--font-sans);
@@ -95,22 +122,22 @@
     background: transparent;
     color: var(--text);
     cursor: pointer;
-    transition: filter 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease;
+    transition: filter 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
   }
-  button:hover, input[type=submit]:hover { border-color: var(--text); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.35); }
+  button:hover, input[type=submit]:hover { border-color: var(--muted); transform: translateY(-1px); }
   button:active, input[type=submit]:active { transform: translateY(0); }
-  button.primary, input[type=submit].primary { background: var(--text); border-color: var(--text); color: #000; font-weight: 800; }
-  button.primary:hover, input[type=submit].primary:hover { filter: brightness(0.92); border-color: var(--text); }
+  button.primary, input[type=submit].primary { background: var(--accent); border-color: var(--accent); color: #04140d; font-weight: 800; }
+  button.primary:hover, input[type=submit].primary:hover { filter: brightness(1.08); border-color: var(--accent); box-shadow: 0 4px 20px var(--accent-dim); }
   button.danger, input[type=submit].danger { background: transparent; border-color: var(--bad); color: var(--bad); font-weight: 800; }
-  button.danger:hover, input[type=submit].danger:hover { background: var(--bad); color: #1a0605; }
+  button.danger:hover, input[type=submit].danger:hover { background: var(--bad); color: #1c0a06; }
   input[type=password], input[type=number], input[type=text], select, textarea {
     width: 100%;
     font-family: var(--font-sans);
     font-size: 1rem;
     padding: 0.75rem 1rem;
-    border-radius: 14px;
+    border-radius: 10px;
     border: 1px solid var(--border);
-    background: #0a0a0a;
+    background: var(--bg);
     color: var(--text);
   }
   input[type=password]:focus, input[type=number]:focus, input[type=text]:focus, select:focus, textarea:focus,
@@ -121,16 +148,34 @@
   textarea { min-height: 4.5rem; resize: vertical; }
   .muted { color: var(--muted); }
   .error { color: var(--bad); margin-bottom: 1rem; }
-  video { width: 100%; max-width: 380px; border-radius: 12px; border: 1px solid var(--border); display: block; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+  video { width: 100%; max-width: 380px; border-radius: 10px; border: 1px solid var(--border); display: block; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
   .video-wrap { display: flex; justify-content: center; margin-bottom: 1.25rem; }
-  .section-name { color: var(--accent); font-weight: 700; margin: 1rem 0 0.35rem; }
-  .cite-mark { color: var(--accent); font-weight: 700; font-size: 0.8rem; vertical-align: super; }
-  .ledger-entry { margin-bottom: 0.9rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--border); }
-  .ledger-entry:last-child { border-bottom: none; }
-  .ledger-entry.stretched { border-left: 3px solid var(--warn); padding-left: 0.75rem; }
-  .ledger-quote { font-style: italic; }
-  .ledger-url { color: var(--muted); font-size: 0.85rem; word-break: break-all; }
-  .ledger-used { color: var(--muted); font-size: 0.85rem; margin-top: 0.3rem; }
+  .section-name {
+    font-family: var(--font-mono);
+    color: var(--accent);
+    font-weight: 500;
+    font-size: 0.78rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    margin: 1.1rem 0 0.4rem;
+  }
+  .cite-mark { color: var(--accent); font-family: var(--font-mono); font-weight: 500; font-size: 0.75rem; vertical-align: super; }
+  .ledger-entry { display: flex; gap: 0.9rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+  .ledger-entry:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  .ledger-index {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.15rem 0.45rem;
+    height: fit-content;
+  }
+  .ledger-entry.stretched .ledger-index { color: var(--warn); border-color: var(--warn); }
+  .ledger-quote { font-family: var(--font-serif); font-style: italic; font-size: 1.02rem; }
+  .ledger-url { font-family: var(--font-mono); color: var(--muted); font-size: 0.78rem; word-break: break-all; margin-top: 0.35rem; }
+  .ledger-used { color: var(--muted); font-size: 0.85rem; margin-top: 0.4rem; }
   .actions { display: flex; gap: 1rem; margin-top: 1.75rem; flex-wrap: wrap; }
   .actions form { display: flex; gap: 0.6rem; align-items: flex-start; flex: 1; min-width: 220px; }
   .actions form.approve-form { flex: 0 0 auto; }
@@ -138,11 +183,17 @@
   .actions form.approve-form button { min-width: 200px; }
   .back-link { display: inline-block; margin-bottom: 1.25rem; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: color 0.15s ease; }
   .back-link:hover { color: var(--accent); }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <a class="brand" href="/">EdAI Problem Radar — Review</a>
+  <a class="brand" href="/">
+    <span class="brand-mark">EdAI Problem Radar</span>
+    <span class="brand-desk">Review Desk</span>
+  </a>
   <span class="sub">
     {% if authenticated %}
     <a class="nav-link" href="/">queue</a>

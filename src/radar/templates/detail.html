@@ -2,10 +2,11 @@
 {% block title %}{{ record.problem_title }} — EdAI Problem Radar{% endblock %}
 {% block content %}
 <a class="back-link" href="/">&larr; back to queue</a>
-<h2 style="margin-bottom:0.2rem;">{{ record.problem_title }}</h2>
-<p class="muted" style="margin-top:0;">
-  {{ record.domain }} · {{ "%.1f"|format(record.total_duration_seconds) }}s
-  {% if date %}· generated {{ date }}{% endif %} ·
+<div class="eyebrow" style="margin-bottom:0.5rem;">{{ record.domain }}</div>
+<h2 style="margin-bottom:0.4rem;">{{ record.problem_title }}</h2>
+<p class="muted" style="margin-top:0;display:flex;gap:0.7rem;align-items:center;flex-wrap:wrap;">
+  <span class="data">{{ "%.1f"|format(record.total_duration_seconds) }}s</span>
+  {% if date %}<span class="data">{{ date }}</span>{% endif %}
   <span class="badge {{ record.status }}">{{ record.status.replace('_', ' ') }}</span>
 </p>
 
@@ -32,10 +33,13 @@
   <h3 style="margin-top:0;">Evidence Ledger</h3>
   {% for entry in ledger %}
     <div class="ledger-entry {% if loop.index0 in stretched %}stretched{% endif %}">
-      {% if loop.index0 in stretched %}<div class="flag">⚠ used to back {{ entry.used_in|length }} different lines — check each is really verified by it</div>{% endif %}
-      <div class="ledger-quote">[{{ loop.index0 }}] "{{ entry.citation.quote }}"</div>
-      <div class="ledger-url">{{ entry.citation.url }}</div>
-      <div class="ledger-used">Used in: {{ entry.used_in|join(" · ") }}</div>
+      <div class="ledger-index">{{ "%02d"|format(loop.index0) }}</div>
+      <div style="min-width:0;">
+        {% if loop.index0 in stretched %}<div class="flag">⚠ used to back {{ entry.used_in|length }} different lines — check each is really verified by it</div>{% endif %}
+        <div class="ledger-quote">&ldquo;{{ entry.citation.quote }}&rdquo;</div>
+        <div class="ledger-url">{{ entry.citation.url }}</div>
+        <div class="ledger-used">Used in: {{ entry.used_in|join(" · ") }}</div>
+      </div>
     </div>
   {% endfor %}
 </div>

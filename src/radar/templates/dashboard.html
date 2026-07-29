@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Review Queue — EdAI Problem Radar{% endblock %}
 {% block content %}
+<div class="eyebrow" style="margin-bottom:0.5rem;">Review Desk</div>
 <h2>Review Queue</h2>
-<p class="muted">{{ pending_count }} waiting for review</p>
+<p class="data" style="color:var(--muted);">{{ pending_count }} pending</p>
 
 <form method="get" action="/" style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1.75rem;">
   <label class="muted" style="font-size:0.9rem;display:flex;align-items:center;gap:0.5rem;">
@@ -24,15 +25,18 @@
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
   {% for domain, records in groups %}
   <div class="panel" style="margin-bottom:0;">
-    <h3 style="margin:0 0 1rem;font-size:1rem;">{{ domain }} <span class="muted" style="font-weight:400;">({{ records|length }})</span></h3>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem;border-bottom:1px solid var(--border);padding-bottom:0.75rem;">
+      <h3 style="margin:0;font-size:0.98rem;">{{ domain }}</h3>
+      <span class="data">{{ "%02d"|format(records|length) }}</span>
+    </div>
     {% for r in records %}
     <div style="padding:0.65rem 0;border-bottom:1px solid var(--border);">
       <a class="row-link" href="/draft/{{ r.id }}" style="display:block;font-size:0.92rem;line-height:1.35;">{{ r.problem_title }}</a>
-      <div class="muted" style="font-size:0.78rem;margin-top:0.4rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+      <div class="data" style="font-size:0.74rem;margin-top:0.45rem;display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;">
         <span>{{ "%.1f"|format(r.total_duration_seconds) }}s</span>
-        {% if dates[r.id] %}<span>· {{ dates[r.id] }}</span>{% endif %}
-        <span class="badge {{ r.status }}" style="font-size:0.68rem;padding:0.15rem 0.5rem;">{{ r.status.replace('_', ' ') }}</span>
-        {% if r.id in flagged_ids %}<span class="flag">⚠</span>{% endif %}
+        {% if dates[r.id] %}<span>{{ dates[r.id] }}</span>{% endif %}
+        <span class="badge {{ r.status }}" style="font-size:0.65rem;padding:0.15rem 0.5rem;">{{ r.status.replace('_', ' ') }}</span>
+        {% if r.id in flagged_ids %}<span class="flag" style="font-family:var(--font-sans);">⚠</span>{% endif %}
       </div>
     </div>
     {% endfor %}
