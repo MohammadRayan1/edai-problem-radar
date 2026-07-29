@@ -72,6 +72,9 @@ radar review request-changes <id> --note "what should change"
 # Review the queue (browser page — for non-technical reviewers, e.g. a manager)
 radar review-web
 
+# Stamp the "EdAI Inc" watermark onto existing draft videos, in place — free, no API calls
+radar watermark
+
 # See what you've spent so far
 radar usage show
 ```
