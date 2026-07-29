@@ -5,3 +5,7 @@ __pycache__/
 venv/
 *.egg-info/
 data/
+
+# moviepy occasionally drops an intermediate temp file at cwd if a render is
+# interrupted mid-write — belt-and-suspenders in case one lands at the repo root.
+*TEMP_MPY*

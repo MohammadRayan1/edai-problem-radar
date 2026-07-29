@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typer
 
-from radar import batch, costs, research_engine, review_cli, review_web, script_engine, video_engine
+from radar import batch, costs, research_engine, review_cli, review_web, script_engine, video_engine, watermark
 
 app = typer.Typer(add_completion=False, help="EdAI Problem Radar — research, script, video, review pipeline")
 
@@ -17,6 +17,9 @@ app.add_typer(costs.app, name="usage", help="Show cumulative API spend")
 app.command(
     "review-web", help="Launch the browser-based review page (local-only, password-gated)"
 )(review_web.serve)
+app.command(
+    "watermark", help="Stamp the EdAI watermark onto existing draft videos in place (free, no API calls)"
+)(watermark.run)
 
 
 if __name__ == "__main__":
