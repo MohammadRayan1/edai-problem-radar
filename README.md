@@ -84,6 +84,8 @@ A local, password-gated web page for reviewing drafts without touching the CLI â
 - By default it only listens on `127.0.0.1` (this machine only). To let someone review from their own device on the same WiFi/network, run `radar review-web --host 0.0.0.0` and give them `http://<this-machine's-LAN-IP>:8000` (find your LAN IP with `ipconfig getifaddr en0` on macOS). Anyone on that network who has the password can reach it, so only do this on a trusted network.
 - `--port` overrides the port (default 8000 / `REVIEW_WEB_PORT` in `.env`).
 
+It also has a **Generate videos** page (link in the header) so a non-technical user can kick off new generation without the CLI: pick a domain and count (capped at 5 per click), see a price estimate, confirm, then watch a live log until it's done. Runs as a background process â€” closing the browser tab doesn't stop it, and the resulting drafts just show up in the review queue.
+
 The 10 valid domains (must match exactly): Aerospace and Space Systems, Defense, Agriculture, Energy, Public Safety and Emergency Response, Supply Chain and Critical Logistics, Industrials/Manufacturing and Small and Medium-Sized Enterprises, Education, Healthcare, Housing.
 
 ## What to expect from a run
