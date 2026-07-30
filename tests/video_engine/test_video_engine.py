@@ -90,17 +90,31 @@ class TestFlattenLines:
 
 
 class TestAttachVisualMetadata:
-    def test_attaches_query_and_icon_id_when_visual_present(self):
+    def test_attaches_query_and_icon_id_for_an_icon_visual(self):
         timeline = [{"text": "a"}, {"text": "b"}]
-        queries = ["satellite", "shield"]
-        visuals = [{"icon_id": "mdi:satellite-variant", "path": "x.png"}, None]
+        visuals = [
+            {"type": "icon", "icon_id": "mdi:satellite-variant", "path": "x.png", "query": "satellite"},
+            None,
+        ]
 
-        _attach_visual_metadata(timeline, queries, visuals)
+        _attach_visual_metadata(timeline, visuals)
 
-        assert timeline[0]["icon_query"] == "satellite"
+        assert timeline[0]["visual_type"] == "icon"
+        assert timeline[0]["visual_query"] == "satellite"
         assert timeline[0]["icon_id"] == "mdi:satellite-variant"
-        assert timeline[1]["icon_query"] == "shield"
+        assert timeline[1]["visual_type"] is None
+        assert timeline[1]["visual_query"] is None
         assert timeline[1]["icon_id"] is None
+
+    def test_attaches_query_for_a_video_visual_with_no_icon_id(self):
+        timeline = [{"text": "a"}]
+        visuals = [{"type": "video", "path": "x.mp4", "query": "hospital nurse", "description": "hospital nurse"}]
+
+        _attach_visual_metadata(timeline, visuals)
+
+        assert timeline[0]["visual_type"] == "video"
+        assert timeline[0]["visual_query"] == "hospital nurse"
+        assert timeline[0]["icon_id"] is None
 
 
 class TestResolveFont:

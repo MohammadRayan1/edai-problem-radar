@@ -17,7 +17,9 @@ from moviepy import (
     CompositeVideoClip,
     ImageClip,
     TextClip,
+    VideoFileClip,
     concatenate_audioclips,
+    vfx,
 )
 from rich.console import Console
 
@@ -25,6 +27,7 @@ from radar.captions import block_height, layout_words, render_caption_frame
 from radar.config import Settings, get_settings
 from radar.costs import record_tts_usage
 from radar.models import Script
+from radar.stock_video import fetch_all_stock_visuals, generate_video_queries
 from radar.visuals import ACCENT_PALETTE, fetch_all_icons, generate_icon_queries
 
 app = typer.Typer(add_completion=False)
@@ -213,11 +216,31 @@ def _badge_position(t: float, duration: float) -> tuple[float, float]:
     return (FRAME_CENTER_X - size / 2, BADGE_CENTER_Y - size / 2)
 
 
+def _prepare_stock_clip(path: Path, duration: float) -> VideoFileClip:
+    """Loop or trim a stock clip to exactly `duration`, then cover-crop it to VIDEO_SIZE.
+
+    Stock footage is rarely native 9:16, so this scales up by whichever axis needs it
+    more and center-crops the overflow — the same "cover" behavior as CSS
+    background-size: cover, just done by hand since MoviePy doesn't have that built in.
+    """
+    clip = VideoFileClip(str(path)).without_audio()
+    clip = clip.with_effects([vfx.Loop(duration=duration)]) if clip.duration < duration else clip.subclipped(0, duration)
+
+    scale = max(VIDEO_SIZE[0] / clip.w, VIDEO_SIZE[1] / clip.h)
+    clip = clip.resized(scale)
+    clip = clip.cropped(x_center=clip.w / 2, y_center=clip.h / 2, width=VIDEO_SIZE[0], height=VIDEO_SIZE[1])
+    return clip
+
+
 def _build_background_clip(visual: dict | None, start: float, duration: float):
     dark_bg = ColorClip(size=VIDEO_SIZE, color=(15, 15, 20), duration=duration)
 
     if visual is None:
         return dark_bg.with_start(start)
+
+    if visual["type"] == "video":
+        clip = _prepare_stock_clip(visual["path"], duration)
+        return clip.with_start(start)
 
     badge = ImageClip(str(visual["path"])).resized(width=BADGE_DISPLAY_SIZE)
     animated_badge = (
@@ -287,10 +310,12 @@ def _assemble_video(
     return video.with_audio(audio)
 
 
-def _attach_visual_metadata(timeline: list[dict], queries: list[str], visuals: list[dict | None]) -> None:
+def _attach_visual_metadata(timeline: list[dict], visuals: list[dict | None]) -> None:
     for i, item in enumerate(timeline):
-        item["icon_query"] = queries[i]
-        item["icon_id"] = visuals[i]["icon_id"] if visuals[i] else None
+        v = visuals[i]
+        item["visual_type"] = v["type"] if v else None
+        item["visual_query"] = v.get("query") if v else None
+        item["icon_id"] = v.get("icon_id") if v else None
 
 
 def _save_meta(
@@ -338,13 +363,45 @@ def generate_video(
             clip.close()
         raise
 
-    console.print("[bold]Sourcing icon visuals...[/bold]")
     anthropic_client = Anthropic(api_key=settings.anthropic_api_key)
-    queries = generate_icon_queries([l["text"] for l in lines], anthropic_client, settings.anthropic_model)
-    visuals = asyncio.run(fetch_all_icons(queries, draft_dir / "visuals"))
-    console.print(f"Sourced icons for {len(visuals)}/{len(lines)} lines.")
+    line_texts = [l["text"] for l in lines]
 
-    _attach_visual_metadata(timeline, queries, visuals)
+    visuals: list[dict | None] = [None] * len(lines)
+    if settings.pexels_api_key:
+        console.print("[bold]Sourcing stock video visuals...[/bold]")
+        video_queries = generate_video_queries(line_texts, anthropic_client, settings.anthropic_model)
+        video_visuals = asyncio.run(
+            fetch_all_stock_visuals(
+                line_texts,
+                video_queries,
+                settings.pexels_api_key,
+                anthropic_client,
+                settings.anthropic_model,
+                draft_dir / "stock_video",
+            )
+        )
+        for i, v in enumerate(video_visuals):
+            if v:
+                v["query"] = video_queries[i]
+                visuals[i] = v
+        found = sum(1 for v in visuals if v)
+        console.print(f"Found relevant stock video for {found}/{len(lines)} lines.")
+
+    fallback_indices = [i for i, v in enumerate(visuals) if v is None]
+    if fallback_indices:
+        console.print(f"[bold]Sourcing icon visuals for the remaining {len(fallback_indices)} line(s)...[/bold]")
+        fallback_texts = [line_texts[i] for i in fallback_indices]
+        icon_queries = generate_icon_queries(fallback_texts, anthropic_client, settings.anthropic_model)
+        icon_visuals = asyncio.run(fetch_all_icons(icon_queries, draft_dir / "visuals"))
+        for idx, query, icon_visual in zip(fallback_indices, icon_queries, icon_visuals):
+            visuals[idx] = {
+                "type": "icon",
+                "path": icon_visual["path"],
+                "icon_id": icon_visual["icon_id"],
+                "query": query,
+            }
+
+    _attach_visual_metadata(timeline, visuals)
 
     console.print("[bold]Assembling video...[/bold]")
     video = _assemble_video(timeline, clips, visuals, font)

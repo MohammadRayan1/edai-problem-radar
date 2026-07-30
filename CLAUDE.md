@@ -32,9 +32,9 @@ The 10 domains (locked in `research_engine.Domain`, not free text):
 Because the output is discovery content for teenagers, not internal ops
 tooling: problem selection should skew toward what's genuinely interesting and
 graspable to a teen (this is what the Teen Accessibility score in
-`research_engine` is for), and video visuals (motion-graphic icon badges +
-karaoke-style word-highlighted captions) should be engaging, not just
-functional captions-on-a-background.
+`research_engine` is for), and video visuals (relevance-checked stock video
+clips, motion-graphic icon badges as fallback, karaoke-style word-highlighted
+captions) should be engaging, not just functional captions-on-a-background.
 
 Launch scope: internal tool. The team uses `radar batch` / `radar review`
 directly from the CLI — no web dashboard yet. (Domain experts getting their
@@ -97,8 +97,21 @@ Assembles a vertical draft video from a `Script`.
   character-level alignment; word boundaries are derived by grouping
   consecutive non-whitespace characters, guaranteeing exact correspondence
   with the script text.
-- Per-line icon badges sourced from Iconify (`visuals.py`) via Claude-generated
-  search queries, with a pop-in animation.
+- Per-line visuals, in priority order: a relevance-checked stock video clip
+  (`stock_video.py`, Pexels), falling back to an icon badge (`visuals.py`,
+  Iconify) for any line without a good clip.
+  - The relevance check is what makes stock video usable at all — an earlier
+    attempt at this used stock footage without one and shipped an unrelated
+    clip behind a real line. A lexical search match doesn't mean visual
+    relevance (a first fix using just the clip's text description still let
+    through a stock-market-chart clip for a line about spacecraft engineers),
+    so the check sends Claude the candidate's actual thumbnail *image*
+    alongside the line and asks it to judge the real visible content, not
+    just whether the search query shared a keyword. A rejected or
+    empty-result line always falls back to an icon rather than using a
+    dubious clip — coverage varies a lot by topic (spaceflight: usually 0%
+    real video, general industries: often 20-30%) and that's expected, not a
+    bug.
 - Karaoke-style captions: each spoken word highlights as it's said. Rendered
   via direct PIL image compositing (`captions.py`), not MoviePy `TextClip` —
   compositing many differently-sized TextClips together has real glyph-sizing
@@ -129,6 +142,9 @@ here.
 - `storage.py` — `ReviewRecord` SQLModel + SQLite engine helper.
 - `config.py` — `pydantic-settings`-based `.env` config (API keys, model IDs,
   voice ID, font path).
+- `watermark.py` — `radar watermark` stamps the EdAI wordmark onto existing
+  draft videos in place, as pure local video compositing (no API calls, so
+  it's free to run against already-generated drafts).
 
 ## Tech stack (as built)
 
@@ -138,9 +154,10 @@ here.
 | Search/research | Tavily API | |
 | HTTP | `httpx` (async) | concurrency-limited + retry for TTS calls |
 | Data models | `pydantic` v2 | `Problem`, `Script`, `EvidenceLedgerEntry`, etc. (`models.py`) |
-| LLM calls | Anthropic SDK, model `claude-sonnet-5`, forced tool-use + adaptive thinking | research extraction, script generation, icon-query generation |
-| TTS | ElevenLabs (`with-timestamps` endpoint) | character-level alignment; free tier is 10k chars/month — watch quota |
-| Icons | Iconify API (free, no key) | AND-based search — use compound/single-word queries |
+| LLM calls | Anthropic SDK, model `claude-sonnet-5`, forced tool-use + adaptive thinking | research extraction, script generation, icon/video query generation, vision-based stock-clip relevance check |
+| TTS | ElevenLabs (`with-timestamps` endpoint) | character-level alignment; free tier is 10k chars/month — watch quota; default voice is George (warm storyteller) |
+| Stock video | Pexels Video API (free) | per-line search, portrait-orientation preferred; every candidate is vision-checked before use — see `video_engine.py` above |
+| Icons | Iconify API (free, no key) | AND-based search — use compound/single-word queries; fallback when no stock video passes the relevance check |
 | Video assembly | `moviepy` 2.x + PIL-rendered caption/badge frames | MoviePy `TextClip` avoided for captions due to compositing bugs |
 | CLI | `typer` + `rich` | root `radar` app wires up all subcommands |
 | Storage | local filesystem + SQLite (`sqlmodel`) | artifact files on disk, review state in SQLite |
@@ -165,6 +182,8 @@ edai-problem-radar/
 │   ├── script_engine.py    # section specs, evidence ledger, pacing gates
 │   ├── video_engine.py     # TTS, timeline, assembly
 │   ├── visuals.py          # icon query gen + Iconify sourcing + badge rendering
+│   ├── stock_video.py      # video query gen + Pexels sourcing + vision relevance check
+│   ├── watermark.py        # `radar watermark` — free, in-place post-process stamp
 │   ├── captions.py         # PIL karaoke caption layout/rendering
 │   └── batch.py            # `radar batch` — chains all 3 generation stages
 ├── data/
@@ -178,6 +197,7 @@ edai-problem-radar/
     ├── script_engine/
     ├── video_engine/
     ├── visuals/
+    ├── stock_video/
     ├── captions/
     └── review_cli/
 ```
@@ -191,5 +211,9 @@ edai-problem-radar/
   distinct source URLs — enforced by `_enforce_citation_diversity` in
   `research_engine.py`, not just prompted for.
 - No video reaches "approved" state without passing through `review_cli`.
+- No stock video clip is used as a line's visual unless it passed the
+  vision-based relevance check in `stock_video.check_relevance_batch` — a
+  rejected or unchecked candidate always falls back to an icon, never gets
+  used on a hunch.
 - Every artifact (`Problem`, `Script`, video draft) is versioned and traceable
   back to its upstream input for auditability.

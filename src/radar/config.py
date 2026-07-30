@@ -12,8 +12,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5"
 
     elevenlabs_api_key: str
-    elevenlabs_voice_id: str = "TX3LPaxmHKxFdv7VOQHJ"  # Liam - Energetic, Social Media Creator
+    elevenlabs_voice_id: str = "JBFqnCBsd6RMkjVDRZzb"  # George - Warm, Captivating Storyteller
     elevenlabs_model_id: str = "eleven_multilingual_v2"
+
+    pexels_api_key: str | None = None
 
     font_path: str | None = None
 

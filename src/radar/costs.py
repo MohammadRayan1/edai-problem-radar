@@ -59,12 +59,19 @@ def record_tts_usage(operation: str, characters: int, log_path: Path = DEFAULT_L
 
 # Rough per-video estimate for the pre-flight confirmation in `radar batch`, based on
 # typical observed usage in this pipeline (script generation often needs 2-3 attempts
-# to pass the pacing/evidence-ledger gates).
+# to pass the pacing/evidence-ledger gates). Icon/video-query/relevance figures are
+# calibrated from data/usage.jsonl, not guessed.
 _EST_SCRIPT_INPUT_TOK = 1800
 _EST_SCRIPT_OUTPUT_TOK = 900
 _EST_SCRIPT_ATTEMPTS = 2
-_EST_ICON_QUERY_INPUT_TOK = 500
-_EST_ICON_QUERY_OUTPUT_TOK = 300
+_EST_ICON_QUERY_INPUT_TOK = 1350
+_EST_ICON_QUERY_OUTPUT_TOK = 100
+_EST_VIDEO_QUERY_INPUT_TOK = 1150
+_EST_VIDEO_QUERY_OUTPUT_TOK = 180
+# The relevance check sends one thumbnail image per candidate clip, so this is far
+# more input-token-heavy than a text-only call — confirmed from real usage, not a guess.
+_EST_STOCK_RELEVANCE_INPUT_TOK = 8700
+_EST_STOCK_RELEVANCE_OUTPUT_TOK = 130
 _EST_RESEARCH_INPUT_TOK = 3000
 _EST_RESEARCH_OUTPUT_TOK = 1500
 
@@ -84,8 +91,12 @@ def estimate_batch_cost(count: int, model: str = "claude-sonnet-5") -> dict:
         _EST_SCRIPT_INPUT_TOK * _EST_SCRIPT_ATTEMPTS, _EST_SCRIPT_OUTPUT_TOK * _EST_SCRIPT_ATTEMPTS
     )
     per_video_icons = anthropic_cost(_EST_ICON_QUERY_INPUT_TOK, _EST_ICON_QUERY_OUTPUT_TOK)
+    per_video_stock_video = anthropic_cost(
+        _EST_VIDEO_QUERY_INPUT_TOK + _EST_STOCK_RELEVANCE_INPUT_TOK,
+        _EST_VIDEO_QUERY_OUTPUT_TOK + _EST_STOCK_RELEVANCE_OUTPUT_TOK,
+    )
 
-    anthropic_total = research + count * (per_video_script + per_video_icons)
+    anthropic_total = research + count * (per_video_script + per_video_icons + per_video_stock_video)
     elevenlabs_total = count * (_EST_CHARS_PER_VIDEO / 1000) * ELEVENLABS_PRICE_PER_1K_CHARS
 
     return {
