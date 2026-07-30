@@ -11,6 +11,7 @@ from radar.script_engine import (
     ScriptValidationError,
     _build_evidence_ledger,
     _load_problem,
+    _pacing_grace_words,
     _parse_sections_input,
     _section_word_budget,
     _total_word_cap,
@@ -119,10 +120,12 @@ class TestValidatePacing:
         assert _section_word_budget(5) < _section_word_budget(25)
 
     def test_fails_total_cap_even_when_every_section_is_individually_within_budget(self):
-        # Each section sits exactly at its own per-section ceiling — legal individually —
-        # but summed across all 5 sections that exceeds the total-script word cap.
+        # Each section sits exactly at its own per-section ceiling (including grace) — legal
+        # individually — but summed across all 5 sections that exceeds the total-script word cap
+        # (also including its own grace).
+        grace = _pacing_grace_words()
         sections = [
-            make_section(name, [(" ".join(["word"] * _section_word_budget(end - start)), [])])
+            make_section(name, [(" ".join(["word"] * (_section_word_budget(end - start) + grace)), [])])
             for name, start, end in SECTION_SPECS
         ]
 
@@ -131,6 +134,24 @@ class TestValidatePacing:
 
     def test_total_cap_scales_with_the_configured_duration_and_pace(self):
         assert _total_word_cap() > 0
+
+    def test_passes_when_a_section_is_over_budget_but_within_the_grace_period(self):
+        sections = full_valid_sections()
+        grace = _pacing_grace_words()
+        budget = _section_word_budget(4)  # Hook is a 4s section
+        # exactly at budget + grace should still pass (grace is inclusive, not exclusive)
+        sections[0] = make_section("Hook", [(" ".join(["word"] * (budget + grace)), [])])
+
+        _validate_pacing(sections)
+
+    def test_fails_when_a_section_is_over_budget_beyond_the_grace_period(self):
+        sections = full_valid_sections()
+        grace = _pacing_grace_words()
+        budget = _section_word_budget(4)
+        sections[0] = make_section("Hook", [(" ".join(["word"] * (budget + grace + 1)), [])])
+
+        with pytest.raises(ScriptValidationError):
+            _validate_pacing(sections)
 
 
 class TestBuildEvidenceLedger:

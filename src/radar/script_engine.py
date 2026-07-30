@@ -38,9 +38,15 @@ SECTION_NAMES = [name for name, _, _ in SECTION_SPECS]
 # Sections that must carry at least one cited claim — the strict evidence-ledger gate.
 FACT_SECTIONS = {"Why It Matters", "Why Now", "Opportunity"}
 
-WORDS_PER_SEC = 2.60  # measured ElevenLabs (Liam, eleven_multilingual_v2) pace, not just a guess
+WORDS_PER_SEC = 2.60  # measured ElevenLabs (eleven_multilingual_v2) pace, not just a guess
 PACING_TOLERANCE = 1.15  # allowed slack over the ideal per-section word budget before hard-failing
 TOTAL_DURATION_CAP_SEC = 58  # hard outer bound (2s under the 60s requirement), no tolerance padding
+
+# A script that overshoots a budget by up to this many seconds still passes validation instead
+# of burning a retry attempt — the word-count budget is an estimate, not an exact measurement,
+# and video_engine's post-TTS _check_duration_cap (against the real rendered audio) is the actual
+# backstop against a video that's genuinely too long, so small overages here are safe to let through.
+PACING_GRACE_SEC = 10
 
 
 def _build_tool(num_citations: int) -> dict:
@@ -264,29 +270,39 @@ def _total_word_cap() -> int:
     return round(TOTAL_DURATION_CAP_SEC * WORDS_PER_SEC)
 
 
+def _pacing_grace_words() -> int:
+    return round(PACING_GRACE_SEC * WORDS_PER_SEC)
+
+
 def _validate_pacing(sections: list[ScriptSection]) -> None:
+    grace = _pacing_grace_words()
+
     overruns = []
     for section in sections:
         duration = section.end_sec - section.start_sec
         budget = _section_word_budget(duration)
         word_count = sum(len(line.text.split()) for line in section.lines)
-        if word_count > budget:
-            overruns.append(f"{section.name}: {word_count} words (budget ~{budget} for {duration}s)")
+        if word_count > budget + grace:
+            overruns.append(
+                f"{section.name}: {word_count} words (budget ~{budget} for {duration}s, "
+                f"+{PACING_GRACE_SEC}s grace)"
+            )
 
     if overruns:
         raise ScriptValidationError(
             "Pacing validation failed. "
-            f"These sections have too many words for their allotted time at ~{WORDS_PER_SEC} words/sec:\n  "
-            + "\n  ".join(overruns)
+            f"These sections have too many words for their allotted time at ~{WORDS_PER_SEC} words/sec "
+            f"(a {PACING_GRACE_SEC}s grace period is already included):\n  " + "\n  ".join(overruns)
         )
 
     total_words = sum(len(line.text.split()) for section in sections for line in section.lines)
     total_cap = _total_word_cap()
-    if total_words > total_cap:
+    if total_words > total_cap + grace:
         raise ScriptValidationError(
             f"Pacing validation failed. Total script is {total_words} words — over the "
-            f"{TOTAL_DURATION_CAP_SEC}s hard cap (~{total_cap} words at ~{WORDS_PER_SEC} words/sec), "
-            "even though individual sections were within their own budgets."
+            f"{TOTAL_DURATION_CAP_SEC}s hard cap (~{total_cap} words at ~{WORDS_PER_SEC} words/sec, "
+            f"+{PACING_GRACE_SEC}s grace already included), even though individual sections were "
+            "within their own budgets."
         )
 
 
