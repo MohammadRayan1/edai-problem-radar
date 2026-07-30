@@ -49,6 +49,24 @@ def generated_date(draft_dir: str) -> str:
     return dt_utc.astimezone().strftime("%b %-d")
 
 
+_RESULT_LINE_PREFIX = "RESULT_JSON:"
+
+
+def parse_batch_results(log_text: str) -> list[dict]:
+    """Pull out the machine-readable per-problem outcomes `batch.py` emits, so the
+    generate-status page can show a clear success/failure summary instead of making
+    someone read the full console log to find out what actually happened."""
+    results = []
+    for line in log_text.splitlines():
+        if not line.startswith(_RESULT_LINE_PREFIX):
+            continue
+        try:
+            results.append(json.loads(line[len(_RESULT_LINE_PREFIX) :]))
+        except json.JSONDecodeError:
+            continue
+    return results
+
+
 class NotAuthenticated(Exception):
     pass
 
@@ -288,10 +306,20 @@ def build_app() -> FastAPI:
         log_path = GENERATE_LOG_DIR / f"{job_id}.log"
         log_text = log_path.read_text() if log_path.exists() else "Starting…"
         done = "ALL DOMAINS COMPLETE" in log_text
+        results = parse_batch_results(log_text)
+        succeeded = [r for r in results if r["status"] == "done"]
+        failed = [r for r in results if r["status"] != "done"]
         return templates.TemplateResponse(
             request,
             "generate_status.html",
-            {"authenticated": True, "job_id": job_id, "log_text": log_text, "done": done},
+            {
+                "authenticated": True,
+                "job_id": job_id,
+                "log_text": log_text,
+                "done": done,
+                "succeeded": succeeded,
+                "failed": failed,
+            },
         )
 
     @web_app.get("/generate/status/{job_id}/raw")

@@ -14,6 +14,35 @@
   {% endif %}
 </p>
 
+{% if succeeded or failed %}
+<div class="panel">
+  {% if succeeded %}
+  <div style="margin-bottom: {{ '1.25rem' if failed else '0' }};">
+    <div class="eyebrow" style="color:var(--good);margin-bottom:0.5rem;">✓ Generated ({{ succeeded|length }})</div>
+    {% for r in succeeded %}
+    <div style="padding:0.35rem 0;">{{ r.domain }} — {{ r.problem }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if failed %}
+  <div>
+    <div class="eyebrow" style="color:var(--bad);margin-bottom:0.5rem;">✗ Didn't make it ({{ failed|length }})</div>
+    {% for r in failed %}
+    <div style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
+      <div>{{ r.domain }}{% if r.problem %} — {{ r.problem }}{% endif %}
+        <span class="badge rejected" style="margin-left:0.4rem;">
+          {{ "research failed" if r.status == "domain_failed" else ("script never passed" if r.status == "skipped" else "video failed") }}
+        </span>
+      </div>
+      <div class="muted" style="font-size:0.82rem;margin-top:0.3rem;white-space:pre-wrap;">{{ r.detail }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="panel">
   <pre style="white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;font-size:0.85rem;color:var(--text);margin:0;max-height:60vh;overflow-y:auto;">{{ log_text }}</pre>
 </div>

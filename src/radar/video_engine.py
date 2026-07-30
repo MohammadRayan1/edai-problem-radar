@@ -47,6 +47,10 @@ class DurationExceededError(Exception):
 VIDEO_SIZE = (1080, 1920)
 FPS = 24
 HARD_DURATION_CAP_SEC = 60.0
+# A video that's only a little over the target still ships instead of getting discarded after
+# TTS has already been paid for — matches script_engine.PACING_GRACE_SEC, the equivalent grace
+# at the earlier (pre-TTS, estimate-based) pacing gate.
+DURATION_GRACE_SEC = 10.0
 
 FONT_CANDIDATES = [
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
@@ -189,11 +193,13 @@ def _build_timeline(
 
 
 def _check_duration_cap(duration_sec: float) -> None:
-    if duration_sec > HARD_DURATION_CAP_SEC:
+    limit = HARD_DURATION_CAP_SEC + DURATION_GRACE_SEC
+    if duration_sec > limit:
         raise DurationExceededError(
-            f"Actual narration duration {duration_sec:.1f}s exceeds the "
-            f"{HARD_DURATION_CAP_SEC:.0f}s hard product requirement — script_engine's pacing "
-            "gate estimate undershot the real TTS output for this script. Regenerate the script."
+            f"Actual narration duration {duration_sec:.1f}s exceeds the {limit:.0f}s hard limit "
+            f"(the {HARD_DURATION_CAP_SEC:.0f}s target plus a {DURATION_GRACE_SEC:.0f}s grace period) — "
+            "script_engine's pacing gate estimate undershot the real TTS output by a lot for this "
+            "script. Regenerate the script."
         )
 
 

@@ -6,6 +6,7 @@ from radar.config import Settings
 from radar.models import Script, ScriptLine, ScriptSection
 from radar.video_engine import (
     BADGE_DISPLAY_SIZE,
+    DURATION_GRACE_SEC,
     FRAME_CENTER_X,
     HARD_DURATION_CAP_SEC,
     POP_DURATION,
@@ -27,9 +28,13 @@ class TestCheckDurationCap:
     def test_passes_silently_exactly_at_the_cap(self):
         _check_duration_cap(HARD_DURATION_CAP_SEC)
 
-    def test_raises_when_actual_narration_exceeds_the_cap(self):
+    def test_passes_silently_within_the_grace_period(self):
+        _check_duration_cap(HARD_DURATION_CAP_SEC + 0.7)
+        _check_duration_cap(HARD_DURATION_CAP_SEC + DURATION_GRACE_SEC)
+
+    def test_raises_when_actual_narration_exceeds_the_cap_plus_grace(self):
         with pytest.raises(DurationExceededError):
-            _check_duration_cap(HARD_DURATION_CAP_SEC + 0.7)
+            _check_duration_cap(HARD_DURATION_CAP_SEC + DURATION_GRACE_SEC + 0.1)
 
 
 class TestEaseOutBack:

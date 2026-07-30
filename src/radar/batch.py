@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import typer
@@ -18,6 +19,16 @@ app = typer.Typer(add_completion=False)
 console = Console()
 
 MAX_SCRIPT_ATTEMPTS = 3
+
+
+def _emit_result(domain_name: str, problem: str | None, status: str, detail: str) -> None:
+    # A plain (non-Rich) single-line JSON marker, separate from the human-facing console
+    # output above — review_web.py's generate-status page greps the log for these lines
+    # to build a clear success/failure summary without having to parse the Rich table.
+    print(
+        f"RESULT_JSON:{json.dumps({'domain': domain_name, 'problem': problem, 'status': status, 'detail': detail})}",
+        flush=True,
+    )
 
 
 @app.command()
@@ -47,6 +58,7 @@ def run(
         problems = research_domain(domain_name, settings)
     except NoResultsError as e:
         console.print(f"[red]{e}[/red]")
+        _emit_result(domain_name, None, "domain_failed", str(e))
         raise typer.Exit(1) from e
 
     raw_path = save_research(domain_name, problems, raw_dir)
@@ -71,6 +83,7 @@ def run(
         if script is None:
             console.print(f"[bold red]Skipping {problem.title!r} — script never passed validation.[/bold red]\n")
             results.append({"problem": problem.title, "status": "skipped", "detail": str(last_error)})
+            _emit_result(domain_name, problem.title, "skipped", str(last_error))
             continue
 
         script_path = save_script(script, scripts_dir)
@@ -81,9 +94,11 @@ def run(
         except Exception as e:  # noqa: BLE001 - one bad video shouldn't kill the batch
             console.print(f"[bold red]Video generation failed for {problem.title!r}: {e}[/bold red]\n")
             results.append({"problem": problem.title, "status": "video_failed", "detail": str(e)})
+            _emit_result(domain_name, problem.title, "video_failed", str(e))
             continue
 
         results.append({"problem": problem.title, "status": "done", "detail": str(video_path)})
+        _emit_result(domain_name, problem.title, "done", str(video_path))
         console.print()
 
     table = Table(title="Batch Summary", show_lines=True)
