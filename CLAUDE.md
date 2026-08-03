@@ -97,9 +97,12 @@ Assembles a vertical draft video from a `Script`.
   character-level alignment; word boundaries are derived by grouping
   consecutive non-whitespace characters, guaranteeing exact correspondence
   with the script text.
-- Per-line visuals, in priority order: a relevance-checked stock video clip
-  (`stock_video.py`, Pexels), falling back to an icon badge (`visuals.py`,
-  Iconify) for any line without a good clip.
+- Per-line visuals: a relevance-checked stock video clip (`stock_video.py`,
+  Pexels) or an icon badge (`visuals.py`, Iconify) — but never a mix within
+  one video. A video only uses stock footage if *every* line found a
+  relevant clip; if even one line comes up empty, the whole video falls back
+  to icons throughout instead, so the visual style stays consistent
+  (`_use_video_for_all_lines`).
   - The relevance check is what makes stock video usable at all — an earlier
     attempt at this used stock footage without one and shipped an unrelated
     clip behind a real line. A lexical search match doesn't mean visual
@@ -107,11 +110,12 @@ Assembles a vertical draft video from a `Script`.
     through a stock-market-chart clip for a line about spacecraft engineers),
     so the check sends Claude the candidate's actual thumbnail *image*
     alongside the line and asks it to judge the real visible content, not
-    just whether the search query shared a keyword. A rejected or
-    empty-result line always falls back to an icon rather than using a
-    dubious clip — coverage varies a lot by topic (spaceflight: usually 0%
-    real video, general industries: often 20-30%) and that's expected, not a
-    bug.
+    just whether the search query shared a keyword.
+  - Coverage varies a lot by topic (spaceflight: usually 0% real video,
+    general industries: often 20-30% per line) — combined with the
+    all-or-nothing rule, most videos end up all-icon, and that's expected,
+    not a bug. All-video only happens when a topic's real footage coverage
+    happens to hit 100% of lines.
 - Karaoke-style captions: each spoken word highlights as it's said. Rendered
   via direct PIL image compositing (`captions.py`), not MoviePy `TextClip` —
   compositing many differently-sized TextClips together has real glyph-sizing
@@ -215,5 +219,7 @@ edai-problem-radar/
   vision-based relevance check in `stock_video.check_relevance_batch` — a
   rejected or unchecked candidate always falls back to an icon, never gets
   used on a hunch.
+- A single video never mixes stock video and icon visuals — it's all one or
+  all the other (`_use_video_for_all_lines`).
 - Every artifact (`Problem`, `Script`, video draft) is versioned and traceable
   back to its upstream input for auditability.

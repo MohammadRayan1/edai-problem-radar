@@ -316,6 +316,13 @@ def _assemble_video(
     return video.with_audio(audio)
 
 
+def _use_video_for_all_lines(video_visuals: list[dict | None]) -> bool:
+    """A video's visuals are all-stock-footage or all-icons, never a mix — so stock video
+    only gets used at all if every single line found a relevant clip. One line falling back
+    to an icon means the whole video falls back to icons, for a consistent look."""
+    return bool(video_visuals) and all(v is not None for v in video_visuals)
+
+
 def _attach_visual_metadata(timeline: list[dict], visuals: list[dict | None]) -> None:
     for i, item in enumerate(timeline):
         v = visuals[i]
@@ -386,12 +393,19 @@ def generate_video(
                 draft_dir / "stock_video",
             )
         )
-        for i, v in enumerate(video_visuals):
-            if v:
+        found = sum(1 for v in video_visuals if v)
+        console.print(f"Found relevant stock video for {found}/{len(lines)} lines.")
+
+        if _use_video_for_all_lines(video_visuals):
+            for i, v in enumerate(video_visuals):
                 v["query"] = video_queries[i]
                 visuals[i] = v
-        found = sum(1 for v in visuals if v)
-        console.print(f"Found relevant stock video for {found}/{len(lines)} lines.")
+            console.print("Every line has a relevant clip — using stock video throughout.")
+        else:
+            console.print(
+                "[yellow]Not every line found a relevant clip — using icons throughout instead, so "
+                "the video doesn't mix real footage and icon badges.[/yellow]"
+            )
 
     fallback_indices = [i for i, v in enumerate(visuals) if v is None]
     if fallback_indices:

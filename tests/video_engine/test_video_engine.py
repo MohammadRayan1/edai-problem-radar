@@ -18,6 +18,7 @@ from radar.video_engine import (
     _ease_out_back,
     _flatten_lines,
     _resolve_font,
+    _use_video_for_all_lines,
 )
 
 
@@ -92,6 +93,24 @@ class TestFlattenLines:
         assert [l["text"] for l in lines] == ["First line", "Second line", "Third line"]
         assert [l["section"] for l in lines] == ["Hook", "Opportunity", "Opportunity"]
         assert lines[1]["citation_indices"] == [0]
+
+
+class TestUseVideoForAllLines:
+    def test_true_when_every_line_has_a_clip(self):
+        video_visuals = [{"type": "video", "path": "a.mp4"}, {"type": "video", "path": "b.mp4"}]
+
+        assert _use_video_for_all_lines(video_visuals) is True
+
+    def test_false_when_one_line_is_missing_a_clip(self):
+        video_visuals = [{"type": "video", "path": "a.mp4"}, None, {"type": "video", "path": "c.mp4"}]
+
+        assert _use_video_for_all_lines(video_visuals) is False
+
+    def test_false_when_no_lines_have_a_clip(self):
+        assert _use_video_for_all_lines([None, None]) is False
+
+    def test_false_for_an_empty_list(self):
+        assert _use_video_for_all_lines([]) is False
 
 
 class TestAttachVisualMetadata:
