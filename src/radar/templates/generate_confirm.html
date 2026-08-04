@@ -8,6 +8,9 @@
 <div class="error">Nothing selected — go back and set a video count above 0 for at least one domain.</div>
 {% else %}
 <div class="panel" style="max-width: 560px;">
+  <p class="muted" style="margin-top:0;">
+    Visuals: <strong style="color:var(--text);">{{ {"auto": "Auto", "icons": "Icons only", "video": "Real video only"}[visual_style] }}</strong>
+  </p>
   <table style="margin-bottom:1rem;">
     <tr>
       <th>Domain</th>
@@ -34,6 +37,7 @@
     <input type="hidden" name="domain" value="{{ s.domain }}">
     <input type="hidden" name="count" value="{{ s.count }}">
     {% endfor %}
+    <input type="hidden" name="visual_style" value="{{ visual_style }}">
     <input type="submit" value="Yes, generate {{ selections|sum(attribute='count') }} video{{ 's' if selections|sum(attribute='count') != 1 else '' }} (~${{ '%.2f'|format(grand_total) }})" class="primary" style="width:100%;">
   </form>
 </div>

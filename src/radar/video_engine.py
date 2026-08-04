@@ -44,6 +44,17 @@ class DurationExceededError(Exception):
     """
 
 
+class NoMatchingVideoError(Exception):
+    """Raised when visual_style="video" was explicitly requested but not every line found a
+    relevant stock clip (or no Pexels key is configured). Icons are never used as a silent
+    fallback when the caller explicitly asked for video-only visuals — that's a request for
+    "auto" instead.
+    """
+
+
+VISUAL_STYLES = ("auto", "icons", "video")
+
+
 VIDEO_SIZE = (1080, 1920)
 FPS = 24
 HARD_DURATION_CAP_SEC = 60.0
@@ -348,9 +359,22 @@ def _save_meta(
 
 
 def generate_video(
-    script: Script, script_path: Path, settings: Settings, output_dir: Path, voice: str | None = None
+    script: Script,
+    script_path: Path,
+    settings: Settings,
+    output_dir: Path,
+    voice: str | None = None,
+    visual_style: str = "auto",
 ) -> Path:
-    """Assemble a vertical 9:16 draft video with TTS narration, karaoke captions, and icon visuals."""
+    """Assemble a vertical 9:16 draft video with TTS narration, karaoke captions, and visuals.
+
+    visual_style: "auto" (stock video if every line finds a relevant clip, else icons
+    throughout), "icons" (skip stock video search entirely), or "video" (stock video only —
+    raises NoMatchingVideoError instead of falling back to icons if not every line matches).
+    """
+    if visual_style not in VISUAL_STYLES:
+        raise ValueError(f"Unknown visual_style {visual_style!r} — expected one of {VISUAL_STYLES}.")
+
     selected_voice = voice or settings.elevenlabs_voice_id
     font = _resolve_font(settings)
 
@@ -380,32 +404,49 @@ def generate_video(
     line_texts = [l["text"] for l in lines]
 
     visuals: list[dict | None] = [None] * len(lines)
-    if settings.pexels_api_key:
-        console.print("[bold]Sourcing stock video visuals...[/bold]")
-        video_queries = generate_video_queries(line_texts, anthropic_client, settings.anthropic_model)
-        video_visuals = asyncio.run(
-            fetch_all_stock_visuals(
-                line_texts,
-                video_queries,
-                settings.pexels_api_key,
-                anthropic_client,
-                settings.anthropic_model,
-                draft_dir / "stock_video",
-            )
-        )
-        found = sum(1 for v in video_visuals if v)
-        console.print(f"Found relevant stock video for {found}/{len(lines)} lines.")
-
-        if _use_video_for_all_lines(video_visuals):
-            for i, v in enumerate(video_visuals):
-                v["query"] = video_queries[i]
-                visuals[i] = v
-            console.print("Every line has a relevant clip — using stock video throughout.")
+    if visual_style in ("auto", "video"):
+        if not settings.pexels_api_key:
+            if visual_style == "video":
+                for clip in clips:
+                    clip.close()
+                raise NoMatchingVideoError(
+                    "Requested video-only visuals, but no PEXELS_API_KEY is configured."
+                )
+            console.print("[yellow]visual_style='auto' but no PEXELS_API_KEY configured — using icons.[/yellow]")
         else:
-            console.print(
-                "[yellow]Not every line found a relevant clip — using icons throughout instead, so "
-                "the video doesn't mix real footage and icon badges.[/yellow]"
+            console.print("[bold]Sourcing stock video visuals...[/bold]")
+            video_queries = generate_video_queries(line_texts, anthropic_client, settings.anthropic_model)
+            video_visuals = asyncio.run(
+                fetch_all_stock_visuals(
+                    line_texts,
+                    video_queries,
+                    settings.pexels_api_key,
+                    anthropic_client,
+                    settings.anthropic_model,
+                    draft_dir / "stock_video",
+                )
             )
+            found = sum(1 for v in video_visuals if v)
+            console.print(f"Found relevant stock video for {found}/{len(lines)} lines.")
+
+            if _use_video_for_all_lines(video_visuals):
+                for i, v in enumerate(video_visuals):
+                    v["query"] = video_queries[i]
+                    visuals[i] = v
+                console.print("Every line has a relevant clip — using stock video throughout.")
+            elif visual_style == "video":
+                for clip in clips:
+                    clip.close()
+                raise NoMatchingVideoError(
+                    f"Requested video-only visuals, but only {found}/{len(lines)} lines found a "
+                    "relevant stock clip — not enough for every line, so this can't ship as pure "
+                    "video without either mixing styles or using a clip that isn't a real match."
+                )
+            else:
+                console.print(
+                    "[yellow]Not every line found a relevant clip — using icons throughout instead, so "
+                    "the video doesn't mix real footage and icon badges.[/yellow]"
+                )
 
     fallback_indices = [i for i, v in enumerate(visuals) if v is None]
     if fallback_indices:
@@ -446,12 +487,20 @@ def run(
     script_path: Path = typer.Argument(..., help="Path to a script_engine output JSON in data/scripts/"),
     output_dir: Path = typer.Option(Path("data/drafts"), help="Where to save the draft video"),
     voice: str | None = typer.Option(None, help="ElevenLabs voice_id to use (overrides config default)"),
+    visual_style: str = typer.Option(
+        "auto",
+        help="'auto' (stock video if every line matches, else icons), 'icons' (icons only), "
+        "or 'video' (stock video only — fails instead of falling back to icons)",
+    ),
 ) -> None:
-    """Assemble a vertical 9:16 draft video with TTS narration, karaoke captions, and icon visuals."""
+    """Assemble a vertical 9:16 draft video with TTS narration, karaoke captions, and visuals."""
+    if visual_style not in VISUAL_STYLES:
+        console.print(f"[red]Invalid --visual-style {visual_style!r} — expected one of {VISUAL_STYLES}.[/red]")
+        raise typer.Exit(1)
     settings = get_settings()
     script = _load_script(script_path)
     console.print(f"[bold]Loaded script:[/bold] {script.problem_title}")
-    generate_video(script, script_path, settings, output_dir, voice)
+    generate_video(script, script_path, settings, output_dir, voice, visual_style)
 
 
 if __name__ == "__main__":

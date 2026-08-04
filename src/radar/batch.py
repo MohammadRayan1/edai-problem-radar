@@ -13,7 +13,7 @@ from radar.research_engine import Domain, NoResultsError, research_domain
 from radar.research_engine import _save as save_research
 from radar.script_engine import ScriptValidationError, generate_script
 from radar.script_engine import _save as save_script
-from radar.video_engine import generate_video
+from radar.video_engine import VISUAL_STYLES, generate_video
 
 app = typer.Typer(add_completion=False)
 console = Console()
@@ -39,9 +39,17 @@ def run(
     scripts_dir: Path = typer.Option(Path("data/scripts"), help="Where to save script JSONs"),
     drafts_dir: Path = typer.Option(Path("data/drafts"), help="Where to save draft videos"),
     voice: str | None = typer.Option(None, help="ElevenLabs voice_id to use (overrides config default)"),
+    visual_style: str = typer.Option(
+        "auto",
+        help="'auto' (stock video if every line matches, else icons), 'icons' (icons only), "
+        "or 'video' (stock video only — skips the problem instead of falling back to icons)",
+    ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the cost-estimate confirmation prompt"),
 ) -> None:
     """Research a domain once, then generate a script + draft video for its top N problems."""
+    if visual_style not in VISUAL_STYLES:
+        console.print(f"[red]Invalid --visual-style {visual_style!r} — expected one of {VISUAL_STYLES}.[/red]")
+        raise typer.Exit(1)
     settings = get_settings()
     domain_name = domain.value
 
@@ -90,7 +98,7 @@ def run(
         console.print(f"Saved script: {script_path}")
 
         try:
-            video_path = generate_video(script, script_path, settings, drafts_dir, voice)
+            video_path = generate_video(script, script_path, settings, drafts_dir, voice, visual_style)
         except Exception as e:  # noqa: BLE001 - one bad video shouldn't kill the batch
             console.print(f"[bold red]Video generation failed for {problem.title!r}: {e}[/bold red]\n")
             results.append({"problem": problem.title, "status": "video_failed", "detail": str(e)})

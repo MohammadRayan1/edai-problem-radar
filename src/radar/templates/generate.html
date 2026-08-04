@@ -8,6 +8,28 @@
 
 <div class="panel" style="max-width: 620px;">
   <form method="post" action="/generate/estimate">
+    <div class="eyebrow" style="margin-bottom:0.6rem;">Visuals</div>
+    <div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.5rem;">
+      <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;">
+        <input type="radio" name="visual_style" value="auto" checked style="width:auto;margin-top:0.25rem;">
+        <span><strong>Auto</strong> <span class="muted">(Recommended)</span><br>
+          <span class="muted" style="font-size:0.85rem;">Real video if every line finds a relevant clip, otherwise icons throughout. Never mixes the two.</span>
+        </span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;">
+        <input type="radio" name="visual_style" value="icons" style="width:auto;margin-top:0.25rem;">
+        <span><strong>Icons only</strong><br>
+          <span class="muted" style="font-size:0.85rem;">Skips the stock video search entirely — faster and a bit cheaper.</span>
+        </span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:0.6rem;cursor:pointer;">
+        <input type="radio" name="visual_style" value="video" style="width:auto;margin-top:0.25rem;">
+        <span><strong>Real video only</strong><br>
+          <span class="muted" style="font-size:0.85rem;">Only ships if every single line finds a genuinely relevant clip — a problem is skipped rather than falling back to icons. Most topics won't fully qualify, so expect more skips with this option.</span>
+        </span>
+      </label>
+    </div>
+
     <table style="margin-bottom:1.5rem;">
       <tr>
         <th>Domain</th>

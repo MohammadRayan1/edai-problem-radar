@@ -20,6 +20,7 @@ from radar.costs import estimate_batch_cost
 from radar.research_engine import Domain
 from radar.review_cli import CITATION_STRETCH_THRESHOLD, _decide, _sync_drafts
 from radar.storage import ReviewRecord, get_engine
+from radar.video_engine import VISUAL_STYLES
 
 app = typer.Typer(add_completion=False)
 
@@ -230,7 +231,12 @@ def build_app() -> FastAPI:
         return templates.TemplateResponse(
             request,
             "generate.html",
-            {"authenticated": True, "domains": [d.value for d in Domain], "max_count": MAX_GENERATE_COUNT},
+            {
+                "authenticated": True,
+                "domains": [d.value for d in Domain],
+                "max_count": MAX_GENERATE_COUNT,
+                "visual_styles": VISUAL_STYLES,
+            },
         )
 
     @web_app.post("/generate/estimate")
@@ -238,8 +244,12 @@ def build_app() -> FastAPI:
         request: Request,
         domain: list[str] = Form(default=[]),
         count: list[int] = Form(default=[]),
+        visual_style: str = Form("auto"),
         _: None = Depends(require_login),
     ) -> object:
+        if visual_style not in VISUAL_STYLES:
+            visual_style = "auto"
+
         valid_domains = {d.value for d in Domain}
         selections = []
         for d, c in zip(domain, count):
@@ -252,13 +262,24 @@ def build_app() -> FastAPI:
         return templates.TemplateResponse(
             request,
             "generate_confirm.html",
-            {"authenticated": True, "selections": selections, "grand_total": grand_total},
+            {
+                "authenticated": True,
+                "selections": selections,
+                "grand_total": grand_total,
+                "visual_style": visual_style,
+            },
         )
 
     @web_app.post("/generate/confirm")
     async def generate_confirm(
-        domain: list[str] = Form(default=[]), count: list[int] = Form(default=[]), _: None = Depends(require_login)
+        domain: list[str] = Form(default=[]),
+        count: list[int] = Form(default=[]),
+        visual_style: str = Form("auto"),
+        _: None = Depends(require_login),
     ) -> RedirectResponse:
+        if visual_style not in VISUAL_STYLES:
+            visual_style = "auto"
+
         valid_domains = {d.value for d in Domain}
         pairs = [
             (d, max(1, min(MAX_GENERATE_COUNT, c)))
@@ -275,15 +296,16 @@ def build_app() -> FastAPI:
 
         # A small driver script run as its own process, looping domains sequentially
         # (ElevenLabs' account-level concurrency cap means parallel domains would just
-        # collide on rate limits). No shell involved — pairs is embedded as a literal
-        # Python list of (str, int) tuples, not interpolated into a shell string.
+        # collide on rate limits). No shell involved — pairs/visual_style are embedded as
+        # literal Python values, not interpolated into a shell string.
         driver = (
             "import subprocess, sys\n"
             f"pairs = {pairs!r}\n"
+            f"visual_style = {visual_style!r}\n"
             "for domain, count in pairs:\n"
             "    print(f'=== {domain} ===', flush=True)\n"
             "    subprocess.run([sys.executable, '-m', 'radar.cli', 'batch', domain, "
-            "'--count', str(count), '--yes'])\n"
+            "'--count', str(count), '--visual-style', visual_style, '--yes'])\n"
             "print('ALL DOMAINS COMPLETE', flush=True)\n"
         )
 
