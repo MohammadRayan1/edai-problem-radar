@@ -10,8 +10,12 @@ from anthropic import Anthropic
 
 from radar.costs import record_anthropic_usage
 
-PEXELS_SEARCH_URL = "https://api.pexels.com/videos/search"
+PEXELS_VIDEO_SEARCH_URL = "https://api.pexels.com/videos/search"
+PEXELS_PHOTO_SEARCH_URL = "https://api.pexels.com/v1/search"
 TARGET_FILE_HEIGHT = 1280  # near our render size without pulling huge 4K source files
+CANDIDATES_PER_QUERY = 3  # per media type, per line — more candidates means more chances to
+# clear the relevance check, at the cost of more thumbnail fetches/relevance rounds when the
+# first choice doesn't hold up
 
 
 def _video_query_tool(num_lines: int) -> dict:
@@ -85,32 +89,81 @@ def _best_video_file(video_files: list[dict]) -> str | None:
     return candidates[0]["link"]
 
 
-async def _search_one(client: httpx.AsyncClient, query: str, api_key: str) -> dict | None:
+def _best_photo_url(src: dict) -> str | None:
+    # large2x is generous resolution without pulling the (often huge) original file — we
+    # cover-crop to our own frame size in video_engine anyway, so we don't need more than this.
+    for key in ("large2x", "large", "original"):
+        if src.get(key):
+            return src[key]
+    return None
+
+
+async def _search_json(
+    client: httpx.AsyncClient, url: str, query: str, api_key: str, limit: int, result_key: str
+) -> list[dict]:
     for params in (
-        {"query": query, "per_page": 3, "orientation": "portrait"},
-        {"query": query, "per_page": 3},  # fall back to any orientation if portrait finds nothing
+        {"query": query, "per_page": limit, "orientation": "portrait"},
+        {"query": query, "per_page": limit},  # fall back to any orientation if portrait finds nothing
     ):
         try:
-            resp = await client.get(PEXELS_SEARCH_URL, headers={"Authorization": api_key}, params=params)
+            resp = await client.get(url, headers={"Authorization": api_key}, params=params)
             resp.raise_for_status()
-            videos = resp.json().get("videos", [])
+            results = resp.json().get(result_key, [])
         except httpx.HTTPError:
-            videos = []
-        if videos:
-            break
-    else:
-        return None
+            results = []
+        if results:
+            return results
+    return []
 
-    video = videos[0]
-    file_url = _best_video_file(video.get("video_files", []))
-    thumbnail_url = video.get("image")
-    if not file_url or not thumbnail_url:
-        return None
-    return {
-        "description": _slug_description(video.get("url", "")),
-        "file_url": file_url,
-        "thumbnail_url": thumbnail_url,
-    }
+
+async def _search_video_candidates(
+    client: httpx.AsyncClient, query: str, api_key: str, limit: int = CANDIDATES_PER_QUERY
+) -> list[dict]:
+    videos = await _search_json(client, PEXELS_VIDEO_SEARCH_URL, query, api_key, limit, "videos")
+
+    candidates = []
+    for video in videos:
+        file_url = _best_video_file(video.get("video_files", []))
+        thumbnail_url = video.get("image")
+        if file_url and thumbnail_url:
+            candidates.append(
+                {
+                    "kind": "video",
+                    "description": _slug_description(video.get("url", "")),
+                    "file_url": file_url,
+                    "thumbnail_url": thumbnail_url,
+                }
+            )
+    return candidates
+
+
+async def _search_photo_candidates(
+    client: httpx.AsyncClient, query: str, api_key: str, limit: int = CANDIDATES_PER_QUERY
+) -> list[dict]:
+    photos = await _search_json(client, PEXELS_PHOTO_SEARCH_URL, query, api_key, limit, "photos")
+
+    candidates = []
+    for photo in photos:
+        src = photo.get("src", {})
+        file_url = _best_photo_url(src)
+        thumbnail_url = src.get("tiny") or src.get("small")
+        # Pexels' photo API returns a real human-written `alt` description directly — better
+        # than the video API's URL-slug-derived one — but fall back to the slug if it's blank.
+        description = (photo.get("alt") or "").strip() or _slug_description(photo.get("url", ""))
+        if file_url and thumbnail_url and description:
+            candidates.append(
+                {"kind": "photo", "description": description, "file_url": file_url, "thumbnail_url": thumbnail_url}
+            )
+    return candidates
+
+
+async def _gather_candidates(client: httpx.AsyncClient, query: str, api_key: str) -> list[dict]:
+    # Video first (more engaging when it works), then photos — Pexels has real photo coverage
+    # for far more subjects than it has usable video clips for, so this is where most of the
+    # "found a genuine match" cases come from for niche topics.
+    video_candidates = await _search_video_candidates(client, query, api_key)
+    photo_candidates = await _search_photo_candidates(client, query, api_key)
+    return video_candidates + photo_candidates
 
 
 async def _fetch_thumbnail(client: httpx.AsyncClient, url: str) -> bytes | None:
@@ -208,6 +261,10 @@ async def _download_one(client: httpx.AsyncClient, url: str, dest_path: Path) ->
     return True
 
 
+def _candidate_extension(kind: str) -> str:
+    return ".mp4" if kind == "video" else ".jpg"
+
+
 async def fetch_all_stock_visuals(
     line_texts: list[str],
     queries: list[str],
@@ -216,40 +273,55 @@ async def fetch_all_stock_visuals(
     model: str,
     out_dir: Path,
 ) -> list[dict[str, Any] | None]:
-    """Per line: search Pexels, verify relevance, download if approved.
+    """Per line: search Pexels (video, then photo), verify relevance, download if approved.
 
-    Returns one entry per line — {"type": "video", "path": Path, "description": str} for an
-    approved, downloaded clip, or None if no relevant clip was found (caller falls back to an
-    icon for that line).
+    Each line gets up to CANDIDATES_PER_QUERY video candidates and CANDIDATES_PER_QUERY photo
+    candidates, checked in that priority order. Checking happens in rounds across all lines at
+    once (round 1 = each line's first candidate, round 2 = the second candidate but only for
+    lines still unmatched after round 1, etc.) rather than per line, so a line with a great
+    first candidate doesn't pay for a line that needs its fourth or fifth try — everyone's
+    round-1 candidates get checked together in one batched relevance call, and only the
+    stragglers carry into round 2.
+
+    Returns one entry per line — {"type": "video"|"photo", "path": Path, "description": str}
+    for an approved, downloaded candidate, or None if nothing relevant was found (caller falls
+    back to an icon for that line).
     """
     out_dir.mkdir(parents=True, exist_ok=True)
+    results: list[dict[str, Any] | None] = [None] * len(queries)
 
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
-        candidates = list(await asyncio.gather(*(_search_one(client, q, api_key) for q in queries)))
+        per_line_candidates = list(await asyncio.gather(*(_gather_candidates(client, q, api_key) for q in queries)))
 
-        candidate_indices = [i for i, c in enumerate(candidates) if c is not None]
-        thumbnails = await asyncio.gather(
-            *(_fetch_thumbnail(client, candidates[i]["thumbnail_url"]) for i in candidate_indices)
-        )
+        max_rounds = max((len(c) for c in per_line_candidates), default=0)
+        for round_idx in range(max_rounds):
+            pending = [
+                i for i in range(len(queries)) if results[i] is None and round_idx < len(per_line_candidates[i])
+            ]
+            if not pending:
+                break
 
-        items: list[tuple[str, bytes]] = []
-        item_indices: list[int] = []
-        for i, thumb in zip(candidate_indices, thumbnails):
-            if thumb is not None:
-                items.append((line_texts[i], thumb))
-                item_indices.append(i)
+            thumbnails = await asyncio.gather(
+                *(_fetch_thumbnail(client, per_line_candidates[i][round_idx]["thumbnail_url"]) for i in pending)
+            )
 
-        relevance = check_relevance_batch(items, anthropic_client, model)
-        approved = {item_indices[j] for j, ok in enumerate(relevance) if ok}
+            items: list[tuple[str, bytes]] = []
+            item_indices: list[int] = []
+            for i, thumb in zip(pending, thumbnails):
+                if thumb is not None:
+                    items.append((line_texts[i], thumb))
+                    item_indices.append(i)
 
-        results: list[dict[str, Any] | None] = [None] * len(queries)
+            relevance = check_relevance_batch(items, anthropic_client, model)
+            approved = [item_indices[j] for j, ok in enumerate(relevance) if ok]
 
-        async def download_and_store(i: int) -> None:
-            dest = out_dir / f"line_{i:03d}.mp4"
-            ok = await _download_one(client, candidates[i]["file_url"], dest)
-            if ok:
-                results[i] = {"type": "video", "path": dest, "description": candidates[i]["description"]}
+            async def download_and_store(i: int) -> None:
+                candidate = per_line_candidates[i][round_idx]
+                dest = out_dir / f"line_{i:03d}{_candidate_extension(candidate['kind'])}"
+                ok = await _download_one(client, candidate["file_url"], dest)
+                if ok:
+                    results[i] = {"type": candidate["kind"], "path": dest, "description": candidate["description"]}
 
-        await asyncio.gather(*(download_and_store(i) for i in approved))
+            await asyncio.gather(*(download_and_store(i) for i in approved))
 
     return results

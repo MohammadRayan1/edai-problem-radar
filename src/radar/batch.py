@@ -41,8 +41,9 @@ def run(
     voice: str | None = typer.Option(None, help="ElevenLabs voice_id to use (overrides config default)"),
     visual_style: str = typer.Option(
         "auto",
-        help="'auto' (stock video if every line matches, else icons), 'icons' (icons only), "
-        "or 'video' (stock video only — skips the problem instead of falling back to icons)",
+        help="'auto' (real imagery — video or photo — if every line matches, else icons), "
+        "'icons' (icons only), or 'video' (real imagery only — skips the problem instead of "
+        "falling back to icons)",
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the cost-estimate confirmation prompt"),
 ) -> None:

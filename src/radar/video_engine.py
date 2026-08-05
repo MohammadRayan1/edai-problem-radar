@@ -46,9 +46,9 @@ class DurationExceededError(Exception):
 
 class NoMatchingVideoError(Exception):
     """Raised when visual_style="video" was explicitly requested but not every line found a
-    relevant stock clip (or no Pexels key is configured). Icons are never used as a silent
-    fallback when the caller explicitly asked for video-only visuals — that's a request for
-    "auto" instead.
+    relevant stock clip or photo (or no Pexels key is configured). Icons are never used as a
+    silent fallback when the caller explicitly asked for real-imagery-only visuals — that's a
+    request for "auto" instead.
     """
 
 
@@ -249,6 +249,37 @@ def _prepare_stock_clip(path: Path, duration: float) -> VideoFileClip:
     return clip
 
 
+PHOTO_KEN_BURNS_ZOOM = 0.08  # slow zoom from 1.0x to 1.08x over the photo's on-screen duration
+
+
+def _photo_scale(t: float, duration: float, base_scale: float) -> float:
+    progress = min(t / duration, 1.0) if duration > 0 else 0.0
+    return base_scale * (1.0 + PHOTO_KEN_BURNS_ZOOM * progress)
+
+
+def _photo_position(t: float, duration: float, base_scale: float, img_w: int, img_h: int) -> tuple[float, float]:
+    scale = _photo_scale(t, duration, base_scale)
+    w, h = img_w * scale, img_h * scale
+    return (VIDEO_SIZE[0] / 2 - w / 2, VIDEO_SIZE[1] / 2 - h / 2)
+
+
+def _prepare_photo_clip(path: Path, duration: float) -> CompositeVideoClip:
+    """A still photo isn't a video, so give it a slow Ken Burns zoom instead of leaving it
+    static — same idea as the icon badge's pop-in, just gentler. Uses the same
+    resize-and-recenter-every-frame approach as the badge animation (proven reliable here)
+    rather than MoviePy's fixed-window crop, which would drift off-center as the image scales.
+    """
+    img = ImageClip(str(path))
+    base_scale = max(VIDEO_SIZE[0] / img.w, VIDEO_SIZE[1] / img.h)
+    animated = (
+        img.resized(lambda t: _photo_scale(t, duration, base_scale))
+        .with_position(lambda t: _photo_position(t, duration, base_scale, img.w, img.h))
+        .with_duration(duration)
+    )
+    dark_bg = ColorClip(size=VIDEO_SIZE, color=(15, 15, 20), duration=duration)
+    return CompositeVideoClip([dark_bg, animated], size=VIDEO_SIZE)
+
+
 def _build_background_clip(visual: dict | None, start: float, duration: float):
     dark_bg = ColorClip(size=VIDEO_SIZE, color=(15, 15, 20), duration=duration)
 
@@ -257,6 +288,10 @@ def _build_background_clip(visual: dict | None, start: float, duration: float):
 
     if visual["type"] == "video":
         clip = _prepare_stock_clip(visual["path"], duration)
+        return clip.with_start(start)
+
+    if visual["type"] == "photo":
+        clip = _prepare_photo_clip(visual["path"], duration)
         return clip.with_start(start)
 
     badge = ImageClip(str(visual["path"])).resized(width=BADGE_DISPLAY_SIZE)
@@ -327,11 +362,12 @@ def _assemble_video(
     return video.with_audio(audio)
 
 
-def _use_video_for_all_lines(video_visuals: list[dict | None]) -> bool:
-    """A video's visuals are all-stock-footage or all-icons, never a mix — so stock video
-    only gets used at all if every single line found a relevant clip. One line falling back
-    to an icon means the whole video falls back to icons, for a consistent look."""
-    return bool(video_visuals) and all(v is not None for v in video_visuals)
+def _use_real_imagery_for_all_lines(real_visuals: list[dict | None]) -> bool:
+    """A video's visuals are all-real-imagery (stock video and/or photo, mixing those two is
+    fine) or all-icons, never a mix of real and icon — so real imagery only gets used at all if
+    every single line found a relevant clip or photo. One line falling back to an icon means
+    the whole video falls back to icons, for a consistent look."""
+    return bool(real_visuals) and all(v is not None for v in real_visuals)
 
 
 def _attach_visual_metadata(timeline: list[dict], visuals: list[dict | None]) -> None:
@@ -368,9 +404,10 @@ def generate_video(
 ) -> Path:
     """Assemble a vertical 9:16 draft video with TTS narration, karaoke captions, and visuals.
 
-    visual_style: "auto" (stock video if every line finds a relevant clip, else icons
-    throughout), "icons" (skip stock video search entirely), or "video" (stock video only —
-    raises NoMatchingVideoError instead of falling back to icons if not every line matches).
+    visual_style: "auto" (real imagery — stock video and/or photo — if every line finds a
+    relevant match, else icons throughout), "icons" (skip the stock search entirely), or
+    "video" (real imagery only — raises NoMatchingVideoError instead of falling back to icons
+    if not every line matches).
     """
     if visual_style not in VISUAL_STYLES:
         raise ValueError(f"Unknown visual_style {visual_style!r} — expected one of {VISUAL_STYLES}.")
@@ -410,42 +447,47 @@ def generate_video(
                 for clip in clips:
                     clip.close()
                 raise NoMatchingVideoError(
-                    "Requested video-only visuals, but no PEXELS_API_KEY is configured."
+                    "Requested real-imagery-only visuals, but no PEXELS_API_KEY is configured."
                 )
             console.print("[yellow]visual_style='auto' but no PEXELS_API_KEY configured — using icons.[/yellow]")
         else:
-            console.print("[bold]Sourcing stock video visuals...[/bold]")
-            video_queries = generate_video_queries(line_texts, anthropic_client, settings.anthropic_model)
-            video_visuals = asyncio.run(
+            console.print("[bold]Sourcing stock video/photo visuals...[/bold]")
+            media_queries = generate_video_queries(line_texts, anthropic_client, settings.anthropic_model)
+            real_visuals = asyncio.run(
                 fetch_all_stock_visuals(
                     line_texts,
-                    video_queries,
+                    media_queries,
                     settings.pexels_api_key,
                     anthropic_client,
                     settings.anthropic_model,
                     draft_dir / "stock_video",
                 )
             )
-            found = sum(1 for v in video_visuals if v)
-            console.print(f"Found relevant stock video for {found}/{len(lines)} lines.")
+            found = sum(1 for v in real_visuals if v)
+            found_video = sum(1 for v in real_visuals if v and v["type"] == "video")
+            found_photo = sum(1 for v in real_visuals if v and v["type"] == "photo")
+            console.print(
+                f"Found relevant real imagery for {found}/{len(lines)} lines "
+                f"({found_video} video, {found_photo} photo)."
+            )
 
-            if _use_video_for_all_lines(video_visuals):
-                for i, v in enumerate(video_visuals):
-                    v["query"] = video_queries[i]
+            if _use_real_imagery_for_all_lines(real_visuals):
+                for i, v in enumerate(real_visuals):
+                    v["query"] = media_queries[i]
                     visuals[i] = v
-                console.print("Every line has a relevant clip — using stock video throughout.")
+                console.print("Every line has a relevant clip or photo — using real imagery throughout.")
             elif visual_style == "video":
                 for clip in clips:
                     clip.close()
                 raise NoMatchingVideoError(
-                    f"Requested video-only visuals, but only {found}/{len(lines)} lines found a "
-                    "relevant stock clip — not enough for every line, so this can't ship as pure "
-                    "video without either mixing styles or using a clip that isn't a real match."
+                    f"Requested real-imagery-only visuals, but only {found}/{len(lines)} lines found a "
+                    "relevant clip or photo — not enough for every line, so this can't ship as pure "
+                    "real imagery without either mixing in icons or using something that isn't a real match."
                 )
             else:
                 console.print(
-                    "[yellow]Not every line found a relevant clip — using icons throughout instead, so "
-                    "the video doesn't mix real footage and icon badges.[/yellow]"
+                    "[yellow]Not every line found a relevant clip or photo — using icons throughout "
+                    "instead, so the video doesn't mix real imagery and icon badges.[/yellow]"
                 )
 
     fallback_indices = [i for i, v in enumerate(visuals) if v is None]
@@ -489,8 +531,9 @@ def run(
     voice: str | None = typer.Option(None, help="ElevenLabs voice_id to use (overrides config default)"),
     visual_style: str = typer.Option(
         "auto",
-        help="'auto' (stock video if every line matches, else icons), 'icons' (icons only), "
-        "or 'video' (stock video only — fails instead of falling back to icons)",
+        help="'auto' (real imagery — video or photo — if every line matches, else icons), "
+        "'icons' (icons only), or 'video' (real imagery only — fails instead of falling back "
+        "to icons)",
     ),
 ) -> None:
     """Assemble a vertical 9:16 draft video with TTS narration, karaoke captions, and visuals."""

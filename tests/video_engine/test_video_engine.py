@@ -17,8 +17,10 @@ from radar.video_engine import (
     _check_duration_cap,
     _ease_out_back,
     _flatten_lines,
+    _photo_position,
+    _photo_scale,
     _resolve_font,
-    _use_video_for_all_lines,
+    _use_real_imagery_for_all_lines,
 )
 
 
@@ -95,22 +97,60 @@ class TestFlattenLines:
         assert lines[1]["citation_indices"] == [0]
 
 
-class TestUseVideoForAllLines:
+class TestUseRealImageryForAllLines:
     def test_true_when_every_line_has_a_clip(self):
-        video_visuals = [{"type": "video", "path": "a.mp4"}, {"type": "video", "path": "b.mp4"}]
+        real_visuals = [{"type": "video", "path": "a.mp4"}, {"type": "video", "path": "b.mp4"}]
 
-        assert _use_video_for_all_lines(video_visuals) is True
+        assert _use_real_imagery_for_all_lines(real_visuals) is True
 
-    def test_false_when_one_line_is_missing_a_clip(self):
-        video_visuals = [{"type": "video", "path": "a.mp4"}, None, {"type": "video", "path": "c.mp4"}]
+    def test_true_when_video_and_photo_are_mixed(self):
+        # mixing video and photo is fine — both are "real imagery"; only mixing with icons isn't.
+        real_visuals = [{"type": "video", "path": "a.mp4"}, {"type": "photo", "path": "b.jpg"}]
 
-        assert _use_video_for_all_lines(video_visuals) is False
+        assert _use_real_imagery_for_all_lines(real_visuals) is True
 
-    def test_false_when_no_lines_have_a_clip(self):
-        assert _use_video_for_all_lines([None, None]) is False
+    def test_false_when_one_line_is_missing_a_match(self):
+        real_visuals = [{"type": "video", "path": "a.mp4"}, None, {"type": "photo", "path": "c.jpg"}]
+
+        assert _use_real_imagery_for_all_lines(real_visuals) is False
+
+    def test_false_when_no_lines_have_a_match(self):
+        assert _use_real_imagery_for_all_lines([None, None]) is False
 
     def test_false_for_an_empty_list(self):
-        assert _use_video_for_all_lines([]) is False
+        assert _use_real_imagery_for_all_lines([]) is False
+
+
+class TestPhotoKenBurns:
+    def test_scale_grows_from_base_toward_base_times_zoom(self):
+        base_scale = 2.0
+        start = _photo_scale(0.0, 10.0, base_scale)
+        end = _photo_scale(10.0, 10.0, base_scale)
+
+        assert start == pytest.approx(base_scale)
+        assert end > start
+
+    def test_scale_never_exceeds_the_end_of_the_zoom_range(self):
+        base_scale = 1.5
+        past_end = _photo_scale(999.0, 10.0, base_scale)
+        at_end = _photo_scale(10.0, 10.0, base_scale)
+
+        assert past_end == pytest.approx(at_end)
+
+    def test_position_keeps_the_image_centered_as_it_scales(self):
+        # the image's on-screen center should stay fixed at the frame's center throughout
+        # the zoom, even though its pixel size grows — otherwise it visibly drifts.
+        from radar.video_engine import VIDEO_SIZE
+
+        img_w, img_h = 1000, 1500
+        base_scale = 1.2
+        for t in (0.0, 2.5, 5.0):
+            x, y = _photo_position(t, 5.0, base_scale, img_w, img_h)
+            scale = _photo_scale(t, 5.0, base_scale)
+            center_x = x + (img_w * scale) / 2
+            center_y = y + (img_h * scale) / 2
+            assert center_x == pytest.approx(VIDEO_SIZE[0] / 2)
+            assert center_y == pytest.approx(VIDEO_SIZE[1] / 2)
 
 
 class TestAttachVisualMetadata:
