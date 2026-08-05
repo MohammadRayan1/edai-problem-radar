@@ -9,14 +9,15 @@ from pathlib import Path
 
 import typer
 import uvicorn
+from anthropic import Anthropic
 from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 from starlette.middleware.sessions import SessionMiddleware
 
 from radar.config import get_settings
-from radar.costs import estimate_batch_cost
+from radar.costs import estimate_batch_cost, record_anthropic_usage
 from radar.research_engine import Domain
 from radar.review_cli import CITATION_STRETCH_THRESHOLD, _decide, _sync_drafts
 from radar.storage import ReviewRecord, get_engine
@@ -66,6 +67,67 @@ def parse_batch_results(log_text: str) -> list[dict]:
         except json.JSONDecodeError:
             continue
     return results
+
+
+# Grounds the help chat in what the pipeline's failure statuses actually mean, so it explains
+# accurately instead of guessing generically — the model never sees the pipeline's source, so
+# without this it would just be free-associating from the status string and detail message alone.
+HELP_SYSTEM_PROMPT = """You are a troubleshooting assistant embedded in EdAI Problem Radar's internal video-review tool. A teammate is looking at a failed video-generation attempt on the website and wants to understand what happened and what to do next. You cannot take any action yourself — you can only explain and suggest; the person has to click Generate again themselves.
+
+Here's what the pipeline's failure statuses actually mean, so you can explain accurately:
+- "domain_failed": the initial research step for a whole domain failed before any problem was even picked — either the search found nothing usable, or every candidate problem got dropped because none had 2+ citations from genuinely different source URLs (a code-enforced anti-fabrication check, not a bug). Usually fine to just try again; source availability varies per search.
+- "skipped": a specific problem's script failed a validation gate on all 3 generation attempts — either the word count ran over its time budget (even with a 10-second grace period built in) or a section was missing a required citation. This is often ordinary variance in how the model writes that particular topic, not a sign anything is broken. Retrying (same problem, or picking a different one by running the domain again) usually works.
+- "video_failed": something failed after the script was already written and narration was already synthesized. Common causes: (a) the real narration audio ran over the 60-second-plus-10-second-grace hard duration cap even though the script's estimate looked fine, because real speech can run slower than the word-count estimate; (b) if "Real video only" was selected as the visual style and not every single line of the script found a genuinely relevant stock video clip, generation is deliberately aborted rather than silently mixing in icon graphics or using an irrelevant clip; (c) some other API or network error, which the detail message will usually name directly.
+
+Answer in plain, friendly, concise language — 2-4 sentences unless the person is asking for real depth. Always end with one concrete, actionable suggestion when there is one (e.g. "just hit Generate again," "try switching to Auto or Icons-only instead of Real video only," "this looks like a one-off — a retry should work fine"). Don't invent a specific cause the detail message doesn't actually support — if it's genuinely unclear, say that plainly instead of guessing."""
+
+MAX_HELP_MESSAGES = 10
+MAX_HELP_MESSAGE_CHARS = 2000
+
+
+def prepare_help_messages(messages: list[dict]) -> list[dict]:
+    """Cap, sanitize, and validate incoming chat history for the Anthropic messages param.
+    Returns [] if there's nothing usable yet (e.g. no real user message), so the caller can
+    short-circuit without spending an API call on an empty or malformed request."""
+    api_messages = []
+    for m in messages[-MAX_HELP_MESSAGES:]:
+        role = "user" if m.get("role") == "user" else "assistant"
+        content = str(m.get("content", ""))[:MAX_HELP_MESSAGE_CHARS].strip()
+        if content:
+            api_messages.append({"role": role, "content": content})
+
+    if not api_messages or api_messages[0]["role"] != "user":
+        return []
+    return api_messages
+
+
+def help_system_prompt(context: dict) -> str:
+    return (
+        HELP_SYSTEM_PROMPT
+        + "\n\nTHIS FAILURE:\n"
+        + f"Domain: {context.get('domain') or 'unknown'}\n"
+        + f"Problem: {context.get('problem') or '(none — the whole domain failed before a problem was picked)'}\n"
+        + f"Status: {context.get('status') or 'unknown'}\n"
+        + f"Detail: {context.get('detail') or '(no detail message)'}"
+    )
+
+
+def generate_help_reply(context: dict, messages: list[dict], settings) -> str:
+    api_messages = prepare_help_messages(messages)
+    if not api_messages:
+        return "Ask a question to get started."
+
+    client = Anthropic(api_key=settings.anthropic_api_key)
+    message = client.messages.create(
+        model=settings.anthropic_model,
+        max_tokens=400,
+        system=help_system_prompt(context),
+        messages=api_messages,
+    )
+    record_anthropic_usage("help_chat", settings.anthropic_model, message.usage.input_tokens, message.usage.output_tokens)
+
+    text_block = next((b for b in message.content if b.type == "text"), None)
+    return text_block.text if text_block else "Sorry, I couldn't put together a response — try asking again."
 
 
 class NotAuthenticated(Exception):
@@ -350,6 +412,14 @@ def build_app() -> FastAPI:
             return PlainTextResponse("invalid job id", status_code=404)
         log_path = GENERATE_LOG_DIR / f"{job_id}.log"
         return PlainTextResponse(log_path.read_text() if log_path.exists() else "Starting…")
+
+    @web_app.post("/help")
+    async def help_chat(request: Request, _: None = Depends(require_login)) -> JSONResponse:
+        body = await request.json()
+        context = body.get("context") if isinstance(body.get("context"), dict) else {}
+        messages = body.get("messages") if isinstance(body.get("messages"), list) else []
+        reply = generate_help_reply(context, messages, settings)
+        return JSONResponse({"reply": reply})
 
     return web_app
 

@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from radar.review_web import generated_date, parse_batch_results
+from radar.review_web import (
+    MAX_HELP_MESSAGES,
+    generated_date,
+    help_system_prompt,
+    parse_batch_results,
+    prepare_help_messages,
+)
 
 
 class TestGeneratedDate:
@@ -68,3 +74,60 @@ class TestParseBatchResults:
 
     def test_handles_an_empty_log(self):
         assert parse_batch_results("") == []
+
+
+class TestPrepareHelpMessages:
+    def test_keeps_a_single_valid_user_message(self):
+        result = prepare_help_messages([{"role": "user", "content": "what happened?"}])
+
+        assert result == [{"role": "user", "content": "what happened?"}]
+
+    def test_returns_empty_when_there_are_no_messages(self):
+        assert prepare_help_messages([]) == []
+
+    def test_returns_empty_when_the_first_message_is_not_from_the_user(self):
+        # shouldn't happen in normal use, but don't send a malformed exchange to the API
+        assert prepare_help_messages([{"role": "assistant", "content": "hi"}]) == []
+
+    def test_normalizes_unknown_roles_to_assistant(self):
+        result = prepare_help_messages(
+            [{"role": "user", "content": "hi"}, {"role": "system", "content": "weird role"}]
+        )
+
+        assert result[1]["role"] == "assistant"
+
+    def test_drops_messages_with_empty_or_whitespace_only_content(self):
+        result = prepare_help_messages([{"role": "user", "content": "  "}, {"role": "user", "content": "real question"}])
+
+        assert result == [{"role": "user", "content": "real question"}]
+
+    def test_truncates_overly_long_content(self):
+        long_text = "x" * 5000
+        result = prepare_help_messages([{"role": "user", "content": long_text}])
+
+        assert len(result[0]["content"]) == 2000
+
+    def test_caps_history_to_the_most_recent_messages(self):
+        messages = [{"role": "user", "content": f"msg {i}"} for i in range(MAX_HELP_MESSAGES + 5)]
+
+        result = prepare_help_messages(messages)
+
+        assert len(result) == MAX_HELP_MESSAGES
+        assert result[-1]["content"] == f"msg {MAX_HELP_MESSAGES + 4}"
+
+
+class TestHelpSystemPrompt:
+    def test_includes_the_failure_context_fields(self):
+        context = {"domain": "Healthcare", "problem": "X", "status": "video_failed", "detail": "duration too long"}
+
+        prompt = help_system_prompt(context)
+
+        assert "Healthcare" in prompt
+        assert "X" in prompt
+        assert "video_failed" in prompt
+        assert "duration too long" in prompt
+
+    def test_handles_a_missing_problem_gracefully(self):
+        prompt = help_system_prompt({"domain": "Agriculture", "status": "domain_failed", "detail": "no sources"})
+
+        assert "none" in prompt.lower()
