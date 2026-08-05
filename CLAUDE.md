@@ -126,6 +126,25 @@ Assembles a vertical draft video from a `Script`.
   - Static photos get a slow Ken Burns zoom (1.0x → 1.08x over the clip's
     on-screen duration, `_prepare_photo_clip`) so they don't feel static next
     to video clips in the same draft.
+  - Search queries and relevance judgments both come back from Claude as a
+    forced tool call, and on roughly half of calls in testing the model
+    double-encodes the array field as a raw JSON string instead of a native
+    array (e.g. `{"queries": "{\"queries\": [...]}"}`) — an intermittent
+    tool-calling quirk, not something a specific prompt triggers. Left
+    unhandled this silently corrupts an entire batch: the string gets
+    iterated one character at a time, every "query" becomes a single letter,
+    and every line in that batch fails to match anything — which looked like
+    a content/coverage problem but was actually this. `_coerce_tool_list`
+    unwraps it before use; both `generate_video_queries` and
+    `check_relevance_batch` go through it.
+  - Lines addressed straight to the viewer (rhetorical hooks, "imagine a tool
+    that...", calls to action like "Build the tool. Start now.") have no
+    literal scene of their own. `generate_video_queries` knows this is
+    footage for a teen tech-founder program, so it queries for a student
+    actively coding/prototyping rather than taking words like "build"
+    literally (that used to search for construction-site footage); the
+    relevance-check prompt correspondingly judges these lines on thematic fit
+    to "building a tech solution," not literal depiction of the sentence.
   - Coverage still varies a lot by topic and combined with the all-or-nothing
     rule, some videos still end up all-icon — that remains expected, not a
     bug, just rarer now than with single-candidate video-only search.

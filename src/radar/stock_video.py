@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 from pathlib import Path
 from typing import Any
 
@@ -13,9 +14,24 @@ from radar.costs import record_anthropic_usage
 PEXELS_VIDEO_SEARCH_URL = "https://api.pexels.com/videos/search"
 PEXELS_PHOTO_SEARCH_URL = "https://api.pexels.com/v1/search"
 TARGET_FILE_HEIGHT = 1280  # near our render size without pulling huge 4K source files
-CANDIDATES_PER_QUERY = 3  # per media type, per line — more candidates means more chances to
+CANDIDATES_PER_QUERY = 5  # per media type, per line — more candidates means more chances to
 # clear the relevance check, at the cost of more thumbnail fetches/relevance rounds when the
 # first choice doesn't hold up
+
+
+def _coerce_tool_list(value: Any, key: str) -> list:
+    """Claude's tool-use output occasionally double-encodes an array field as a raw JSON
+    string instead of a native array — e.g. {"queries": "{\"queries\": [...]}"} instead of
+    {"queries": [...]}. This is an intermittent tool-calling quirk (observed on ~half of
+    calls in testing), not something any specific prompt triggers. Left unhandled, iterating
+    that string per-character silently turns every query into a single letter, which then
+    fails every search in that whole batch — a real, previously-unnoticed cause of lines
+    coming up with no relevant match.
+    """
+    if isinstance(value, str):
+        parsed = json.loads(value)
+        return parsed[key] if isinstance(parsed, dict) else parsed
+    return value
 
 
 def _video_query_tool(num_lines: int) -> dict:
@@ -37,7 +53,12 @@ def _video_query_tool(num_lines: int) -> dict:
                             "'cybersecurity code screen'. Describe something a camera could actually film that "
                             "matches this specific line's claim, not a generic or abstract stand-in — avoid "
                             "defaulting to generic 'office'/'business meeting' footage unless the line is "
-                            "literally about an office or a meeting."
+                            "literally about an office or a meeting. For lines addressed directly to the "
+                            "viewer with no literal scene of their own (calls to action like 'build the tool, "
+                            "start now' or rhetorical hooks like 'what if this changed?'), query for a student "
+                            "or young person actively coding, prototyping, or building something on a laptop — "
+                            "this is footage for a program where teens go build a tech solution, so 'build' "
+                            "means building software/tech, not literal construction."
                         ),
                     },
                 }
@@ -53,10 +74,11 @@ def generate_video_queries(lines: list[str], client: Anthropic, model: str) -> l
         model=model,
         max_tokens=1024,
         system=(
-            "You pick one stock-footage search query per narration line for a short vertical explainer video. "
-            "Each query should describe a concrete, filmable real-world scene that matches what that specific "
-            "line is actually claiming — not a generic mood shot. Keep the queries in the same order as the "
-            "lines."
+            "You pick one stock-footage search query per narration line for a short vertical explainer video "
+            "made for a teen tech/entrepreneurship program (students research a real-world problem, then build "
+            "a software tool to address it). Each query should describe a concrete, filmable real-world scene "
+            "that matches what that specific line is actually claiming — not a generic mood shot. Keep the "
+            "queries in the same order as the lines."
         ),
         tools=[_video_query_tool(len(lines))],
         tool_choice={"type": "tool", "name": "emit_video_queries"},
@@ -65,7 +87,7 @@ def generate_video_queries(lines: list[str], client: Anthropic, model: str) -> l
     record_anthropic_usage("video_queries", model, message.usage.input_tokens, message.usage.output_tokens)
 
     tool_use = next(block for block in message.content if block.type == "tool_use")
-    return tool_use.input["queries"]
+    return _coerce_tool_list(tool_use.input["queries"], "queries")
 
 
 def _slug_description(url: str) -> str:
@@ -239,7 +261,14 @@ def check_relevance_batch(items: list[tuple[str, bytes]], client: Anthropic, mod
             "the actual technical or industrial subject, generic office footage, an unrelated news event, or "
             "any other case where the image's real content doesn't genuinely depict what the line describes. "
             "The clip doesn't need to be a perfect literal match — topically adjacent and visually sensible is "
-            "fine — but if you can't see a real, honest connection between the image and the line, reject it."
+            "fine — but if you can't see a real, honest connection between the image and the line, reject it.\n\n"
+            "Some lines aren't factual claims at all — they're addressed straight to the viewer: rhetorical "
+            "hooks ('What if this changed?'), hypotheticals ('Imagine a tool that...'), or calls to action "
+            "('Build the tool. Start now.'). These have no single literal scene, so judge them on thematic fit "
+            "instead: does the image show someone actively building, coding, or working on a tech solution (for "
+            "'build/solve/start now' lines), or does it fit the general subject and mood of the video (for "
+            "hooks/hypotheticals)? Approve a genuinely on-theme image for these even though it isn't a literal "
+            "depiction of the sentence — only reject if the image's real subject is unrelated."
         ),
         tools=[_relevance_tool(len(items))],
         tool_choice={"type": "tool", "name": "emit_relevance_judgments"},
@@ -248,7 +277,8 @@ def check_relevance_batch(items: list[tuple[str, bytes]], client: Anthropic, mod
     record_anthropic_usage("stock_video_relevance", model, message.usage.input_tokens, message.usage.output_tokens)
 
     tool_use = next(block for block in message.content if block.type == "tool_use")
-    return [j["relevant"] for j in tool_use.input["judgments"]]
+    judgments = _coerce_tool_list(tool_use.input["judgments"], "judgments")
+    return [j["relevant"] for j in judgments]
 
 
 async def _download_one(client: httpx.AsyncClient, url: str, dest_path: Path) -> bool:

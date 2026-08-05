@@ -8,6 +8,7 @@ from radar.stock_video import (
     _best_photo_url,
     _best_video_file,
     _candidate_extension,
+    _coerce_tool_list,
     _gather_candidates,
     _search_photo_candidates,
     _search_video_candidates,
@@ -43,6 +44,22 @@ class TestSlugDescription:
         url = "https://www.pexels.com/video/wheat-field/"
 
         assert _slug_description(url) == "wheat field"
+
+
+class TestCoerceToolList:
+    def test_passes_a_native_list_through_unchanged(self):
+        assert _coerce_tool_list(["a", "b"], "queries") == ["a", "b"]
+
+    def test_unwraps_a_double_encoded_json_string(self):
+        # observed live: Claude's tool call sometimes returns {"queries": "<json string>"}
+        # instead of a native array — this is the fallback that stops that string from
+        # being iterated one character at a time.
+        raw = '{"queries": ["torn safety net closeup", "teen coding laptop"]}'
+
+        assert _coerce_tool_list(raw, "queries") == ["torn safety net closeup", "teen coding laptop"]
+
+    def test_unwraps_a_bare_json_array_string(self):
+        assert _coerce_tool_list('["a", "b"]', "queries") == ["a", "b"]
 
 
 class TestBestVideoFile:
