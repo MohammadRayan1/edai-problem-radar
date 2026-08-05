@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import math
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -144,6 +145,35 @@ def _words_from_alignment(alignment: dict) -> list[dict]:
     return words
 
 
+_THOUSANDS_COMMA_RE = re.compile(r"(?<=\d),(?=\d{3}\b)")
+
+
+def _tts_speakable(text: str) -> str:
+    """Strip thousands-separator commas from numbers before sending to TTS.
+
+    ElevenLabs sometimes reads a comma-grouped number as two separate numbers instead of
+    treating the comma as a thousands separator — "771,480" came out as "seven hundred
+    seventy-one... four hundred eighty" with "thousand" dropped entirely. A plain digit run
+    with no comma reads correctly as one cardinal number. The comma is restored afterward
+    for captions by _restore_display_text, so this only affects what's spoken, not shown.
+    """
+    return _THOUSANDS_COMMA_RE.sub("", text)
+
+
+def _restore_display_text(original_text: str, words: list[dict]) -> list[dict]:
+    """Swap each word's text back to its original (comma-included) surface form for captions.
+
+    _tts_speakable only ever removes commas with no adjacent whitespace, so it never changes
+    how many whitespace-separated tokens the line has — the word count here always matches
+    original_text.split(), and this is purely a display-text substitution; start/end timing
+    stays exactly as ElevenLabs returned it for the (unpunctuated) audio that was generated.
+    """
+    tokens = original_text.split()
+    if len(tokens) != len(words):
+        return words
+    return [{**w, "text": token} for w, token in zip(words, tokens)]
+
+
 TTS_MAX_CONCURRENCY = 3  # ElevenLabs plans cap concurrent requests; stay comfortably under it
 TTS_MAX_RETRIES = 4
 TTS_RETRY_BASE_DELAY = 2.0  # seconds, doubles each retry
@@ -175,14 +205,15 @@ async def _synthesize_all(
     semaphore = asyncio.Semaphore(TTS_MAX_CONCURRENCY)
 
     async def synth_one(client: httpx.AsyncClient, i: int, text: str) -> tuple[Path, list[dict]]:
-        data = await _synthesize_one(client, semaphore, voice_id, api_key, model_id, text)
+        data = await _synthesize_one(client, semaphore, voice_id, api_key, model_id, _tts_speakable(text))
 
         out_path = audio_dir / f"line_{i:03d}.mp3"
         out_path.write_bytes(base64.b64decode(data["audio_base64"]))
 
         record_tts_usage("narration", len(text))
 
-        return out_path, _words_from_alignment(data["alignment"])
+        words = _restore_display_text(text, _words_from_alignment(data["alignment"]))
+        return out_path, words
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         results = list(await asyncio.gather(*(synth_one(client, i, l["text"]) for i, l in enumerate(lines))))

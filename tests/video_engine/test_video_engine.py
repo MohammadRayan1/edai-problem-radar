@@ -20,6 +20,8 @@ from radar.video_engine import (
     _photo_position,
     _photo_scale,
     _resolve_font,
+    _restore_display_text,
+    _tts_speakable,
     _use_real_imagery_for_all_lines,
 )
 
@@ -95,6 +97,44 @@ class TestFlattenLines:
         assert [l["text"] for l in lines] == ["First line", "Second line", "Third line"]
         assert [l["section"] for l in lines] == ["Hook", "Opportunity", "Opportunity"]
         assert lines[1]["citation_indices"] == [0]
+
+
+class TestTtsSpeakable:
+    def test_strips_a_thousands_comma(self):
+        assert _tts_speakable("771,480 people were homeless.") == "771480 people were homeless."
+
+    def test_strips_multiple_thousands_commas(self):
+        assert _tts_speakable("Over 1,234,567 affected.") == "Over 1234567 affected."
+
+    def test_leaves_text_without_numbers_unchanged(self):
+        assert _tts_speakable("What if the safety net disappeared?") == "What if the safety net disappeared?"
+
+    def test_leaves_a_short_number_unchanged(self):
+        assert _tts_speakable("33 percent since 2020.") == "33 percent since 2020."
+
+
+class TestRestoreDisplayText:
+    def test_swaps_word_text_back_to_the_comma_included_original(self):
+        original = "771,480 people were homeless."
+        words = [
+            {"text": "771480", "start": 0.0, "end": 0.5},
+            {"text": "people", "start": 0.5, "end": 0.8},
+            {"text": "were", "start": 0.8, "end": 1.0},
+            {"text": "homeless.", "start": 1.0, "end": 1.5},
+        ]
+
+        restored = _restore_display_text(original, words)
+
+        assert [w["text"] for w in restored] == ["771,480", "people", "were", "homeless."]
+        # timing must be untouched — only the display text changes
+        assert restored[0]["start"] == 0.0 and restored[0]["end"] == 0.5
+
+    def test_falls_back_to_original_words_when_token_counts_disagree(self):
+        words = [{"text": "a", "start": 0.0, "end": 0.1}]
+
+        restored = _restore_display_text("two words", words)
+
+        assert restored == words
 
 
 class TestUseRealImageryForAllLines:
