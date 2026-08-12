@@ -179,6 +179,14 @@ TTS_MAX_RETRIES = 4
 TTS_RETRY_BASE_DELAY = 2.0  # seconds, doubles each retry
 
 
+TTS_RETRYABLE_STATUS_CODES = {429, 401}  # 401 included alongside rate-limiting: observed live,
+# ElevenLabs intermittently returns 401 for a handful of requests in a batch even with a
+# confirmed-valid key (same key succeeds seconds before/after) — likely a transient hiccup on
+# their auth path under concurrent load, not an actually-invalid key. A genuinely bad key still
+# fails clearly once retries are exhausted; this just stops one flaky 401 on one line from
+# killing an entire video's narration outright.
+
+
 async def _synthesize_one(
     client: httpx.AsyncClient, semaphore: asyncio.Semaphore, voice_id: str, api_key: str, model_id: str, text: str
 ) -> dict:
@@ -189,7 +197,7 @@ async def _synthesize_one(
                 headers={"xi-api-key": api_key},
                 json={"text": text, "model_id": model_id},
             )
-            if resp.status_code == 429 and attempt < TTS_MAX_RETRIES - 1:
+            if resp.status_code in TTS_RETRYABLE_STATUS_CODES and attempt < TTS_MAX_RETRIES - 1:
                 await asyncio.sleep(TTS_RETRY_BASE_DELAY * (2**attempt))
                 continue
             resp.raise_for_status()
