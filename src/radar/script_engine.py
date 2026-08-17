@@ -46,7 +46,8 @@ TOTAL_DURATION_CAP_SEC = 58  # hard outer bound (2s under the 60s requirement), 
 # of burning a retry attempt — the word-count budget is an estimate, not an exact measurement,
 # and video_engine's post-TTS _check_duration_cap (against the real rendered audio) is the actual
 # backstop against a video that's genuinely too long, so small overages here are safe to let through.
-PACING_GRACE_SEC = 10
+# Matches video_engine.DURATION_GRACE_SEC — the real 1-minute cap with a 5s leeway.
+PACING_GRACE_SEC = 5
 
 
 def _build_tool(num_citations: int) -> dict:
@@ -105,6 +106,23 @@ def _system_prompt() -> str:
 into a punchy, under-60-second vertical (9:16) video script for a teenage audience — modeled on the tone and \
 structure of Y Combinator's Requests for Startups: confident, second person ("you"), concrete numbers instead \
 of vague claims, no filler, no hedging.
+
+The single biggest failure mode to avoid is sounding like a lecture. A lecture explains AT the viewer; this \
+script talks TO them, like a smart friend who's genuinely excited about this and is telling them something \
+wild over coffee, not reading them a report. Concretely:
+- Never open a line with a throat-clearing transition word — "Now,", "Additionally,", "Furthermore,", "As a \
+result,", "It's important to note that", "In fact," — cut straight to the claim instead.
+- Use contrast and turns, not flat accumulation. "X used to be true. Then Y happened." lands harder than \
+stacking facts one after another with no relationship between them.
+- Vary your rhythm on purpose. Don't write several medium-length declarative sentences in a row — follow a \
+big number or a turn with a short, blunt line for punch. A four-word sentence next to a longer one is a \
+feature, not sloppiness.
+- Make the stakes feel like they belong to the viewer, not to some abstract system "out there." Prefer \
+concrete, imaginable moments over passive third-person description — put a person in the sentence.
+- End a section on a line that pulls the viewer into the next one — a question, a turn, tension left \
+unresolved — instead of a flat summary sentence that closes the thought and lets the energy drop.
+- Read every line back and ask: would I actually say this out loud to a friend, or does it sound like it \
+belongs in a textbook? If it's the textbook, rewrite it.
 
 Follow this fixed 5-beat structure exactly, one section per beat, in this order:
 1. Hook (~0-4s) — a striking question or statement that grabs attention in the first second. No citation needed.

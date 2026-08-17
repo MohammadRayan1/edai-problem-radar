@@ -62,7 +62,7 @@ HARD_DURATION_CAP_SEC = 60.0
 # A video that's only a little over the target still ships instead of getting discarded after
 # TTS has already been paid for — matches script_engine.PACING_GRACE_SEC, the equivalent grace
 # at the earlier (pre-TTS, estimate-based) pacing gate.
-DURATION_GRACE_SEC = 10.0
+DURATION_GRACE_SEC = 5.0
 
 FONT_CANDIDATES = [
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
