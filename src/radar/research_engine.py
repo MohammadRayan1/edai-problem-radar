@@ -16,6 +16,7 @@ from tavily import TavilyClient
 from radar.config import Settings, get_settings
 from radar.costs import record_anthropic_usage
 from radar.models import Problem
+from radar.stock_video import _coerce_tool_list
 
 app = typer.Typer(add_completion=False)
 console = Console()
@@ -199,7 +200,7 @@ def _extract_and_score(domain: str, results: list[dict], settings: Settings) -> 
     )
 
     tool_use = next(block for block in message.content if block.type == "tool_use")
-    raw_problems = tool_use.input["problems"]
+    raw_problems = _coerce_tool_list(tool_use.input["problems"], "problems")
 
     return [Problem(domain=domain, **raw) for raw in raw_problems]
 

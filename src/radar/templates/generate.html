@@ -38,7 +38,7 @@
       {% for d in domains %}
       <tr>
         <td>{{ d }}<input type="hidden" name="domain" value="{{ d }}"></td>
-        <td><input type="number" name="count" value="0" min="0" max="{{ max_count }}" style="width:100px;padding:0.5rem 0.6rem;font-size:1rem;"></td>
+        <td><input type="number" name="count" value="0" min="0" max="{{ max_count }}" required style="width:100px;padding:0.5rem 0.6rem;font-size:1rem;"></td>
       </tr>
       {% endfor %}
     </table>

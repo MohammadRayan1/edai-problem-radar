@@ -37,6 +37,14 @@ _JOB_ID_RE = re.compile(r"^[a-z0-9_]+_\d{8}T\d{6}Z$")
 _DRAFT_TIMESTAMP_RE = re.compile(r"_(\d{8}T\d{6}Z)$")
 
 
+def _parse_count(raw: str) -> int:
+    """A blank or non-numeric count field (e.g. the user cleared the box) means 0, not an error."""
+    try:
+        return int(raw)
+    except ValueError:
+        return 0
+
+
 def generated_date(draft_dir: str) -> str:
     """The date a draft was generated, read from the timestamp embedded in its
     directory name (not the file's mtime — that changes any time the video file
@@ -305,7 +313,7 @@ def build_app() -> FastAPI:
     async def generate_estimate(
         request: Request,
         domain: list[str] = Form(default=[]),
-        count: list[int] = Form(default=[]),
+        count: list[str] = Form(default=[]),
         visual_style: str = Form("auto"),
         _: None = Depends(require_login),
     ) -> object:
@@ -314,8 +322,8 @@ def build_app() -> FastAPI:
 
         valid_domains = {d.value for d in Domain}
         selections = []
-        for d, c in zip(domain, count):
-            c = max(0, min(MAX_GENERATE_COUNT, c))
+        for d, raw_c in zip(domain, count):
+            c = max(0, min(MAX_GENERATE_COUNT, _parse_count(raw_c)))
             if c > 0 and d in valid_domains:
                 estimate = estimate_batch_cost(c, settings.anthropic_model)
                 selections.append({"domain": d, "count": c, "estimate": estimate})
@@ -335,7 +343,7 @@ def build_app() -> FastAPI:
     @web_app.post("/generate/confirm")
     async def generate_confirm(
         domain: list[str] = Form(default=[]),
-        count: list[int] = Form(default=[]),
+        count: list[str] = Form(default=[]),
         visual_style: str = Form("auto"),
         _: None = Depends(require_login),
     ) -> RedirectResponse:
@@ -343,9 +351,10 @@ def build_app() -> FastAPI:
             visual_style = "auto"
 
         valid_domains = {d.value for d in Domain}
+        parsed = [(d, _parse_count(raw_c)) for d, raw_c in zip(domain, count)]
         pairs = [
             (d, max(1, min(MAX_GENERATE_COUNT, c)))
-            for d, c in zip(domain, count)
+            for d, c in parsed
             if c > 0 and d in valid_domains
         ]
         if not pairs:
